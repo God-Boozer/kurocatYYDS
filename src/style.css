@@ -14,7 +14,8 @@ body {
   height: 100%;
   overflow: hidden;
   background: transparent !important;
-  font-family: "Noto Sans SC UI", "KuroCat UI Emoji", "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif;
+  font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC UI",
+    "KuroCat UI Emoji", system-ui, -apple-system, sans-serif;
 }
 
 /* On Windows 7/8 ULW mode, the cat renders via native 256-level UpdateLayeredWindow while

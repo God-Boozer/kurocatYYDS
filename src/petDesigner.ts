@@ -59,7 +59,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
-  if (max === min) return { h: 0, s: 0, l };
+  if (max === min) return { h: 0, s: 0, l: l * 100 };
   const d = max - min;
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
   let h = 0;
@@ -872,17 +872,22 @@ export function shiftLuminance(hex: string, amount: number): string {
 /** Human-readable Chinese colour name for palette labels. */
 export function colorName(hex: string): string {
   const { h, s, l } = hexToHsl(hex);
-  if (l < 0.13) return '曜石黑';
-  if (l > 0.93) return '云朵白';
-  if (s < 10) return l > 0.7 ? '月光白' : '雾霾灰';
-  if (h < 15 || h >= 345) return l > 0.72 ? '樱花粉' : '石榴红';
-  if (h < 45) return l > 0.72 ? '奶油橘' : '暖橘';
-  if (h < 70) return l > 0.7 ? '蜂蜜金' : '琥珀';
+  const lightness = l / 100;
+  const sat = s / 100;
+  if (lightness < 0.13) return '曜石黑';
+  if (lightness > 0.93) return '云朵白';
+  if (sat < 0.15) {
+    if (lightness > 0.7) return '月光白';
+    return lightness < 0.3 ? '墨黑' : '雾霾灰';
+  }
+  if (h < 15 || h >= 345) return lightness > 0.72 ? '樱花粉' : '石榴红';
+  if (h < 45) return lightness > 0.72 ? '奶油橘' : '暖橘';
+  if (h < 70) return lightness > 0.7 ? '蜂蜜金' : '琥珀';
   if (h < 100) return '嫩芽绿';
-  if (h < 160) return l > 0.62 ? '薄荷绿' : '松柏绿';
+  if (h < 160) return lightness > 0.62 ? '薄荷绿' : '松柏绿';
   if (h < 200) return '湖水青';
-  if (h < 255) return l > 0.72 ? '天空蓝' : '深海蓝';
-  if (h < 290) return l > 0.72 ? '香芋紫' : '星云紫';
+  if (h < 255) return lightness > 0.72 ? '天空蓝' : '深海蓝';
+  if (h < 290) return lightness > 0.72 ? '香芋紫' : '星云紫';
   if (h < 345) return '莓果粉';
   return '柔光';
 }
@@ -1201,6 +1206,161 @@ export function generateCatFromPrompt(prompt: string, seed = Date.now()): PetDes
     furLabel: primary.label,
     eyeLabel: eye.label,
     accentLabel: accentName(accent),
+    traits,
+  };
+
+  return { cat, summary };
+}
+
+/* ------------------------------------------------------------------ */
+/* Character adaptation (studio search)                               */
+/* ------------------------------------------------------------------ */
+
+/** Explicit colours for a character, already adapted from a reference. */
+export interface PalettePetInput {
+  name: string;
+  emoji?: string;
+  fur: string;
+  furSecondary?: string;
+  belly?: string;
+  mask?: string;
+  stripe?: string;
+  patch?: string;
+  tailTip?: string;
+  eye?: string;
+  eyeBottom?: string;
+  accent?: string;
+  pattern?: CatPattern;
+  fluffy?: boolean;
+}
+
+function inferPatternFromPalette(input: PalettePetInput): CatPattern {
+  if (input.pattern) return input.pattern;
+  if (input.stripe) return 'tabby';
+  if (input.patch) return 'calico';
+  if (input.mask) {
+    return luminance(input.mask) < luminance(input.fur) - 0.1 ? 'siamese' : 'bicolor';
+  }
+  if (input.belly && isLight(input.belly) && !isLight(input.fur)) {
+    return isVeryDark(input.fur) ? 'tuxedo' : 'bicolor';
+  }
+  return 'solid';
+}
+
+/**
+ * Builds a skin straight from a character palette (fur / eye / accent colours),
+ * then re-applies the explicit markings so the coat stays faithful to the
+ * reference instead of being re-derived by the pattern heuristics.
+ */
+export function generateCatFromPalette(input: PalettePetInput, seed = Date.now()): PetDesignResult {
+  const fur = input.fur || '#c9a37a';
+  const eyeTop = input.eye || '#c98a2e';
+  const pattern = inferPatternFromPalette(input);
+  const rng = mulberry32(hashString(`${input.name}-${fur}-${seed}`) ^ seed);
+
+  const primary: FurTheme = {
+    id: 'custom',
+    label: colorName(fur),
+    keywords: [],
+    base: fur,
+    secondary: input.furSecondary ?? darken(fur, 0.1),
+    light: input.belly ?? lighten(fur, 0.35),
+    eye: [eyeTop, input.eyeBottom ?? lighten(eyeTop, 0.32)],
+    accent: input.accent ?? eyeTop,
+    names: [input.name],
+    emoji: input.emoji ?? '🐱',
+    weight: 1,
+  };
+  const themes: FurTheme[] = input.furSecondary
+    ? [
+        primary,
+        {
+          ...primary,
+          id: 'custom-alt',
+          label: colorName(input.furSecondary),
+          base: input.furSecondary,
+          secondary: darken(input.furSecondary, 0.1),
+          light: input.belly ?? lighten(input.furSecondary, 0.3),
+          eye: [eyeTop, input.eyeBottom ?? lighten(eyeTop, 0.32)],
+          accent: input.accent ?? eyeTop,
+        },
+      ]
+    : [primary];
+
+  const mood = MOODS.find((entry) => entry.id === 'neutral') ?? MOODS[0];
+  const eye: EyeTheme = {
+    id: 'custom',
+    label: `${colorName(eyeTop)}眼`,
+    keywords: [],
+    top: eyeTop,
+    bottom: input.eyeBottom ?? lighten(eyeTop, 0.32),
+  };
+
+  const prompt = [
+    `${colorName(fur)}毛`,
+    input.belly ? '白色肚皮' : '',
+    `${colorName(eyeTop)}眼睛`,
+    PATTERN_LABELS[pattern],
+    input.fluffy ? '尾巴蓬松' : '',
+  ]
+    .filter(Boolean)
+    .join('，');
+
+  const analysis: Analysis = {
+    mood,
+    themes,
+    pattern,
+    eye,
+    accent: input.accent ?? eyeTop,
+    explicitName: input.name,
+    emoji: input.emoji ?? '🐱',
+    fluffy: Boolean(input.fluffy),
+    spotsRequested: false,
+  };
+
+  const cat = buildSkin(analysis, prompt, seed);
+
+  // Re-apply the reference's own markings on top of the pattern defaults.
+  if (input.belly) {
+    cat.bellyBibColor = input.belly;
+    if (pattern === 'tuxedo' || pattern === 'solid') cat.pawColor = input.belly;
+  }
+  if (input.mask && (pattern === 'siamese' || pattern === 'bicolor')) {
+    cat.maskColor = input.mask;
+    cat.earOuterColor = input.mask;
+    cat.earTipColor = darken(input.mask, 0.08);
+    cat.tailColor = input.mask;
+    cat.tailTipColor = input.tailTip ?? darken(input.mask, 0.12);
+  }
+  if (input.stripe && pattern === 'tabby') {
+    cat.stripeColor = input.stripe;
+    cat.earTipColor = input.stripe;
+    cat.tailTipColor = input.tailTip ?? input.stripe;
+  }
+  if (input.patch && pattern === 'calico') cat.calicoPatchColor = input.patch;
+  if (input.tailTip) cat.tailTipColor = input.tailTip;
+  if (pattern === 'solid' && input.belly) {
+    cat.bellyBibColor = input.belly;
+  }
+
+  cat.id = `studio-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'cat'}-${seed.toString(36).slice(-4)}`;
+  cat.name = input.name;
+  cat.emoji = input.emoji ?? '🐱';
+  cat.builtin = false;
+  void rng;
+
+  const traits: string[] = [];
+  if (cat.tailFluffy) traits.push('蓬松尾巴');
+  if (cat.tailStripes) traits.push('环纹尾');
+  if (cat.spots && cat.spots.length > 0) traits.push('专属斑纹');
+  if (cat.earTuftColor) traits.push('耳尖毛');
+
+  const summary: PetDesignSummary = {
+    moodLabel: '还原',
+    patternLabel: PATTERN_LABELS[pattern],
+    furLabel: colorName(cat.furColor),
+    eyeLabel: eye.label,
+    accentLabel: accentName(cat.accentColor ?? eyeTop),
     traits,
   };
 

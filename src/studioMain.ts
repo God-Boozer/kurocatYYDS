@@ -6,6 +6,7 @@ import type { CatPattern, CatSkinConfig } from './catSkins';
 import {
   allInspirations,
   colorName,
+  generateCatFromPalette,
   generateCatFromPrompt,
   patternDisplayName,
   randomInspiration,
@@ -14,6 +15,7 @@ import {
   type PetDesignResult,
   type PetDesignSummary,
 } from './petDesigner';
+import { searchCharacters, type CharacterMatch } from './characterSearch';
 import { keyboardEventToVk } from './keyToVk';
 import type { KuroCatEngine3D } from './catEngine3d';
 
@@ -85,6 +87,10 @@ const loadingEl = byId<HTMLDivElement>('studio-loading');
 const toastEl = byId<HTMLDivElement>('studio-toast');
 const closeBtn = byId<HTMLButtonElement>('btn-studio-close');
 const stageTypeInput = byId<HTMLInputElement>('stage-type-input');
+const searchInput = byId<HTMLInputElement>('studio-search');
+const searchBtn = byId<HTMLButtonElement>('btn-studio-search');
+const searchResults = byId<HTMLDivElement>('search-results');
+const searchHint = byId<HTMLParagraphElement>('search-hint');
 
 const engine = new KuroCatEngine(canvas, { embedded: true });
 engine.showKeyBubbles = true;
@@ -104,6 +110,9 @@ let currentPrompt = '';
 let seed = Date.now();
 let savedCats: CatSkinConfig[] = [];
 let toastTimer: number | null = null;
+let activeCharacter: CharacterMatch | null = null;
+let characterPrompt = '';
+let searchSeq = 0;
 
 /* ------------------------------------------------------------------ */
 /* Local storage helpers                                               */
@@ -277,7 +286,13 @@ function generateFromPrompt(nextSeed = Date.now()): void {
   const prompt = promptInput.value.trim() || randomInspiration(nextSeed);
   currentPrompt = prompt;
   seed = nextSeed;
-  const result = generateCatFromPrompt(prompt, nextSeed);
+  // When the prompt is still the auto-written description of a searched
+  // character, keep the exact adapted palette instead of re-parsing the text.
+  const result =
+    activeCharacter && prompt === characterPrompt
+      ? generateCatFromPalette(activeCharacter.palette, nextSeed)
+      : generateCatFromPrompt(prompt, nextSeed);
+  if (!activeCharacter || prompt !== characterPrompt) activeCharacter = null;
   applyResult(result);
   stage.classList.remove('flash');
   // Force a reflow so the flash animation can restart on rapid regeneration.
@@ -289,6 +304,101 @@ function setPrompt(prompt: string, generate = true): void {
   promptInput.value = prompt;
   updateCharCount();
   if (generate) generateFromPrompt(Date.now());
+}
+
+/* ------------------------------------------------------------------ */
+/* Character search                                                    */
+/* ------------------------------------------------------------------ */
+
+function describeCharacterPrompt(match: CharacterMatch): string {
+  const palette = match.palette;
+  const parts = [`${match.name}风格`, `${colorName(palette.fur)}毛色`];
+  if (palette.belly) parts.push('白色肚皮');
+  parts.push(`${colorName(palette.eye ?? '#c98a2e')}眼睛`);
+  if (palette.stripe) parts.push('虎斑条纹');
+  if (palette.mask) parts.push('深色重点色');
+  if (palette.patch) parts.push('三色斑块');
+  if (palette.fluffy) parts.push('尾巴蓬松');
+  return parts.join('，');
+}
+
+function applyCharacterMatch(match: CharacterMatch): void {
+  const result = generateCatFromPalette(match.palette, Date.now());
+  activeCharacter = match;
+  characterPrompt = describeCharacterPrompt(match);
+  promptInput.value = characterPrompt;
+  updateCharCount();
+  applyResult(result);
+  stage.classList.remove('flash');
+  void stage.offsetWidth;
+  stage.classList.add('flash');
+  searchResults.classList.add('hidden');
+  searchHint.textContent = `已还原「${match.name}」，下面还能继续改颜色和花纹`;
+  toast(`已按「${match.name}」配色生成`);
+}
+
+function renderSearchResults(matches: CharacterMatch[], query: string): void {
+  searchResults.innerHTML = '';
+  if (matches.length === 0) {
+    searchResults.classList.add('hidden');
+    searchHint.textContent = `没找到「${query}」。试试英文名 / 罗马音（如 Rem、Pikachu），或直接用下面的文字描述。`;
+    return;
+  }
+
+  for (const match of matches) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'search-hit';
+    btn.setAttribute('role', 'option');
+
+    const swatches = [
+      match.palette.fur,
+      match.palette.belly ?? match.palette.furSecondary ?? match.palette.fur,
+      match.palette.eye ?? '#c98a2e',
+      match.palette.accent ?? match.palette.eye ?? '#d4f044',
+    ];
+    const swatchHtml = swatches.map((color) => `<i style="background:${color}"></i>`).join('');
+    btn.innerHTML = `<span class="hit-swatches">${swatchHtml}</span><span class="hit-text"><strong></strong><small></small></span><span class="hit-go">→</span>`;
+    const nameEl = btn.querySelector('strong');
+    const metaEl = btn.querySelector('small');
+    if (nameEl) nameEl.textContent = match.name;
+    if (metaEl) metaEl.textContent = [match.source, match.origin].filter(Boolean).join(' · ');
+
+    btn.addEventListener('click', () => applyCharacterMatch(match));
+    searchResults.appendChild(btn);
+  }
+
+  searchResults.classList.remove('hidden');
+  searchHint.textContent = `找到 ${matches.length} 个，点击即可生成（毛色 / 眼睛 / 键盘光已自动适配）`;
+}
+
+async function runCharacterSearch(): Promise<void> {
+  const query = searchInput.value.trim();
+  if (!query) {
+    toast('先输入角色名，比如「初音未来」');
+    searchInput.focus();
+    return;
+  }
+
+  const seq = ++searchSeq;
+  searchBtn.disabled = true;
+  searchBtn.textContent = '搜索中…';
+  searchHint.textContent = '正在搜索…';
+  searchResults.classList.add('hidden');
+
+  try {
+    const matches = await searchCharacters(query);
+    if (seq !== searchSeq) return;
+    renderSearchResults(matches, query);
+  } catch {
+    if (seq !== searchSeq) return;
+    searchHint.textContent = '联网搜索失败了，检查一下网络；也可以直接用下面的文字描述。';
+  } finally {
+    if (seq === searchSeq) {
+      searchBtn.disabled = false;
+      searchBtn.textContent = '搜索';
+    }
+  }
 }
 
 function renderSavedChips(): void {
@@ -559,6 +669,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
+    const target = e.target as HTMLElement | null;
+    const inTextField =
+      target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+    if (inTextField) return;
     if (!emojiPop.classList.contains('hidden')) {
       emojiPop.classList.add('hidden');
       return;
@@ -604,9 +718,39 @@ if (typeof ResizeObserver !== 'undefined') {
 /* Events                                                              */
 /* ------------------------------------------------------------------ */
 
-promptInput.addEventListener('input', updateCharCount);
+promptInput.addEventListener('input', () => {
+  updateCharCount();
+  if (activeCharacter && promptInput.value !== characterPrompt) activeCharacter = null;
+});
 
 generateBtn.addEventListener('click', () => generateFromPrompt(Date.now()));
+
+searchBtn.addEventListener('click', () => {
+  void runCharacterSearch();
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    void runCharacterSearch();
+    return;
+  }
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    searchResults.classList.add('hidden');
+    searchInput.blur();
+  }
+});
+
+searchInput.addEventListener('input', () => {
+  if (!searchInput.value.trim()) searchResults.classList.add('hidden');
+});
+
+document.addEventListener('pointerdown', (e) => {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest?.('.search-row')) return;
+  searchResults.classList.add('hidden');
+});
 
 diceBtn.addEventListener('click', () => {
   setPrompt(randomInspiration(Date.now()));
