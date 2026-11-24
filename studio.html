@@ -75,9 +75,33 @@
               <span class="step-num">01</span>
               <div>
                 <h2>描述你的桌宠</h2>
-                <p>颜色、花纹、眼睛、性格都可以写</p>
+                <p>颜色、花纹、眼睛、性格都可以写；也可以直接搜角色名</p>
               </div>
             </div>
+
+            <div class="search-row">
+              <div class="search-field">
+                <span class="search-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10.6" cy="10.6" r="6.1" stroke="currentColor" stroke-width="1.8" />
+                    <path d="M15.4 15.4L20 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <input
+                  id="studio-search"
+                  type="search"
+                  maxlength="40"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  placeholder="搜角色：初音未来 / 皮卡丘 / 雷姆"
+                  aria-label="搜索角色"
+                />
+              </div>
+              <button id="btn-studio-search" class="studio-ghost-btn search-btn" type="button">搜索</button>
+              <div class="search-results hidden" id="search-results" role="listbox" aria-label="角色搜索结果"></div>
+            </div>
+            <p class="search-hint" id="search-hint">中文名优先命中内置角色库；英文名 / 罗马音可联网搜到更多</p>
 
             <div class="prompt-wrap">
               <textarea
