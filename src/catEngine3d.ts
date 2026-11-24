@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CatSkinConfig } from './catSkins';
+import type { CatAccessory, CatEarShape, CatSkinConfig } from './catSkins';
 import type { KeyboardLayoutId } from './keyboardLayout';
 import type { KeyboardOrientation, TailKeyMode } from './catEngine';
 import { DEFAULT_TAIL_KEY_IDS } from './catEngine';
@@ -529,7 +529,19 @@ export class KuroCatEngine3D {
   private readonly collarY = 1.32;
   private readonly collarR: number;
 
-  private readonly ears: Array<{ group: THREE.Group; mesh: THREE.Mesh; s: -1 | 1; tilt: number }> = [];
+  private readonly ears: Array<{
+    group: THREE.Group;
+    mesh: THREE.Mesh;
+    s: -1 | 1;
+    tilt: number;
+    baseX: number;
+    baseY: number;
+    baseZ: number;
+  }> = [];
+  private earShape: CatEarShape = 'cat';
+  private cheekOn = false;
+  private accessoryGroup: THREE.Group | null = null;
+  private accessoryGroupKey = '';
   private readonly eyes: Array<{
     s: -1 | 1;
     mesh: THREE.Mesh;
@@ -887,23 +899,9 @@ export class KuroCatEngine3D {
     this.headMount.position.set(0, HEAD_CY, 0);
     this.catRoot.add(this.headMount);
 
-    // 5) Compact Rounded KuroCat 3D Ears (snug, slightly upright triangular cat tips matching Panel 1!)
-    const earPts: Array<[number, number]> = [
-      [0.23, -0.05],
-      [0.21, 0.03],
-      [0.18, 0.12],
-      [0.135, 0.21],
-      [0.082, 0.28],
-      [0.036, 0.322],
-      [0.012, 0.336],
-      [0.0, 0.340],
-    ];
-    const earSplinePts = [
-      new THREE.Vector2(0, -0.05),
-      ...earPts.map(([r, y]) => new THREE.Vector2(r, y)),
-    ];
-    const earGeo = new THREE.LatheGeometry(new THREE.SplineCurve(earSplinePts).getSpacedPoints(28), 36);
-    earGeo.setAttribute('rest', earGeo.attributes.position.clone());
+    // 5) Compact Rounded KuroCat 3D Ears — geometry is swapped per character so the
+    //    silhouette really changes (long / round / drooping / classic cat tips).
+    const earGeo = this.buildEarGeometry('cat');
     for (const s of [-1, 1] as const) {
       const g = new THREE.Group();
       g.position.set(s * 0.295, 0.255, -0.015);
@@ -913,7 +911,7 @@ export class KuroCatEngine3D {
       mesh.scale.set(1, 1, 0.56);
       g.add(mesh);
       this.headMount.add(g);
-      this.ears.push({ group: g, mesh, s, tilt: 0.06 });
+      this.ears.push({ group: g, mesh, s, tilt: 0.06, baseX: 0.295, baseY: 0.255, baseZ: -0.015 });
       this.petMeshes.push(mesh);
     }
 
@@ -1302,6 +1300,195 @@ export class KuroCatEngine3D {
   }
 
   /** Mathematically exact Z depth on the front face of our Lathe body at headMount-local (x, y). */
+  /** Ear silhouette profiles (radius, height) lathed around the ear axis. */
+  private buildEarGeometry(shape: CatEarShape): THREE.BufferGeometry {
+    const profiles: Record<CatEarShape, Array<[number, number]>> = {
+      cat: [
+        [0.23, -0.05], [0.21, 0.03], [0.18, 0.12], [0.135, 0.21],
+        [0.082, 0.28], [0.036, 0.322], [0.012, 0.336], [0, 0.34],
+      ],
+      long: [
+        [0.205, -0.05], [0.19, 0.06], [0.16, 0.18], [0.125, 0.30],
+        [0.082, 0.40], [0.042, 0.47], [0.014, 0.51], [0, 0.525],
+      ],
+      round: [
+        [0.265, -0.05], [0.258, 0.03], [0.235, 0.115], [0.195, 0.19],
+        [0.14, 0.24], [0.075, 0.268], [0.025, 0.278], [0, 0.282],
+      ],
+      fold: [
+        [0.23, -0.05], [0.215, 0.04], [0.19, 0.13], [0.155, 0.20],
+        [0.115, 0.25], [0.07, 0.275], [0.025, 0.288], [0, 0.292],
+      ],
+    };
+    const pts = profiles[shape] ?? profiles.cat;
+    const splinePts = [new THREE.Vector2(0, -0.05), ...pts.map(([r, y]) => new THREE.Vector2(r, y))];
+    const geo = new THREE.LatheGeometry(new THREE.SplineCurve(splinePts).getSpacedPoints(28), 36);
+    geo.setAttribute('rest', geo.attributes.position.clone());
+    return geo;
+  }
+
+  private applyEarShape(shape: CatEarShape): void {
+    if (shape === this.earShape) return;
+    this.earShape = shape;
+    const geo = this.buildEarGeometry(shape);
+    for (const e of this.ears) {
+      e.mesh.geometry = geo;
+      e.tilt = shape === 'fold' ? 1.05 : shape === 'long' ? 0.1 : 0.06;
+      e.baseX = shape === 'long' ? 0.272 : shape === 'round' ? 0.3 : shape === 'fold' ? 0.315 : 0.295;
+      e.baseY = shape === 'long' ? 0.24 : shape === 'round' ? 0.215 : shape === 'fold' ? 0.15 : 0.255;
+      e.group.scale.set(shape === 'long' ? 0.92 : 1.0, shape === 'round' ? 0.94 : 1.04, 1.0);
+    }
+  }
+
+  /** Rebuilds the signature accessory group (ahoge / hat / headband / bow / glasses / bell). */
+  private applyAccessories(items: CatAccessory[], color: string): void {
+    const key = `${items.join('+')}|${color}`;
+    if (key === this.accessoryGroupKey) return;
+    this.accessoryGroupKey = key;
+
+    if (this.accessoryGroup) {
+      this.headMount.remove(this.accessoryGroup);
+      this.accessoryGroup.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) mesh.geometry.dispose();
+      });
+      this.accessoryGroup = null;
+    }
+    if (items.length === 0) return;
+
+    const group = new THREE.Group();
+    // Unlit: this scene is lit by the custom fur shader, so standard materials
+    // would render pure black. Basic materials match the engine's collar / bell.
+    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+    const shadeHex = `#${new THREE.Color(color).multiplyScalar(0.68).getHexString()}`;
+    const matShade = new THREE.MeshBasicMaterial({ color: shadeHex, side: THREE.DoubleSide });
+    const darkMat = new THREE.MeshBasicMaterial({ color: '#23262f' });
+
+    if (items.includes('ahoge')) {
+      const furMat = this.furSystem.createMaterial('EAR', 1);
+      const strand = new TaperTube3D(18, 6, furMat, 12);
+      strand.update(
+        (t, out) => {
+          const x = mix(0.0, 0.13, t) + Math.sin(t * Math.PI * 0.85) * 0.022;
+          const y = mix(0.40, 0.68, t);
+          const z = mix(0.02, -0.03, t);
+          out.set(x, y, z);
+        },
+        (t) => 0.026 * (1 - 0.6 * t),
+      );
+      group.add(strand.mesh);
+    }
+
+    if (items.includes('hat')) {
+      // Cap shell that hugs the crown (radius sampled from the body profile).
+      const capPts: THREE.Vector2[] = [];
+      for (let i = 0; i <= 14; i++) {
+        const y = mix(0.235, 0.475, i / 14);
+        const r = this.radiusAtY(HEAD_CY + y) + 0.048;
+        capPts.push(new THREE.Vector2(Math.max(0.015, r), y));
+      }
+      const capGeo = new THREE.LatheGeometry(capPts, 44);
+      capGeo.scale(1, 1, Z_SCALE);
+      const cap = new THREE.Mesh(capGeo, mat);
+      group.add(cap);
+      const brimR = this.radiusAtY(HEAD_CY + 0.235) + 0.075;
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(brimR, brimR, 0.04, 44), matShade);
+      brim.position.y = 0.235;
+      brim.scale.z = Z_SCALE;
+      group.add(brim);
+    }
+
+    if (items.includes('headband')) {
+      // Narrow strip that hugs the forehead (sampled from the body profile).
+      const bandPts: THREE.Vector2[] = [];
+      for (let i = 0; i <= 8; i++) {
+        const y = mix(0.155, 0.215, i / 8);
+        const r = this.radiusAtY(HEAD_CY + y) + 0.032;
+        bandPts.push(new THREE.Vector2(r, y));
+      }
+      const bandGeo = new THREE.LatheGeometry(bandPts, 44);
+      bandGeo.scale(1, 1, Z_SCALE);
+      group.add(new THREE.Mesh(bandGeo, mat));
+      const trimPts: THREE.Vector2[] = [];
+      for (let i = 0; i <= 8; i++) {
+        const y = mix(0.155, 0.17, i / 8);
+        const r = this.radiusAtY(HEAD_CY + y) + 0.04;
+        trimPts.push(new THREE.Vector2(r, y));
+      }
+      const trimGeo = new THREE.LatheGeometry(trimPts, 44);
+      trimGeo.scale(1, 1, Z_SCALE);
+      group.add(new THREE.Mesh(trimGeo, matShade));
+    }
+
+    if (items.includes('bow')) {
+      const bow = new THREE.Group();
+      for (const sgn of [-1, 1] as const) {
+        const loop = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), mat);
+        loop.position.set(sgn * 0.085, 0, 0);
+        loop.scale.set(1.25, 0.85, 0.5);
+        loop.rotation.z = sgn * 0.35;
+        bow.add(loop);
+      }
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 10), mat);
+      bow.add(knot);
+      bow.position.set(-0.35, 0.27, this.surfaceZ(-0.35, 0.27) + 0.045);
+      bow.rotation.set(0.1, -0.5, -0.35);
+      group.add(bow);
+    }
+
+    if (items.includes('bell')) {
+      const ringR = this.radiusAtY(HEAD_CY - 0.26) + 0.015;
+      const collar = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.026, 8, 36), darkMat);
+      collar.position.set(0, -0.26, 0);
+      collar.rotation.x = Math.PI / 2 + 0.18;
+      collar.scale.z = Z_SCALE;
+      group.add(collar);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.062, 16, 12), new THREE.MeshBasicMaterial({ color: '#f5cd4a' }));
+      ball.position.set(0, -0.30, this.surfaceZ(0, -0.30) + 0.045);
+      group.add(ball);
+      const slit = new THREE.Mesh(new THREE.PlaneGeometry(0.052, 0.011), darkMat);
+      slit.position.set(0, -0.325, this.surfaceZ(0, -0.30) + 0.105);
+      group.add(slit);
+    }
+
+    if (items.includes('glasses')) {
+      const frameMat = new THREE.MeshBasicMaterial({ color });
+      for (const sgn of [-1, 1] as const) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.016, 8, 30), frameMat);
+        ring.position.set(sgn * 0.232, 0.105, this.surfaceZ(sgn * 0.232, 0.105) + 0.045);
+        group.add(ring);
+      }
+      const bridge = new TaperTube3D(10, 5, frameMat, 12);
+      bridge.update(
+        (t, out) => {
+          const x = mix(-0.05, 0.05, t);
+          out.set(x, 0.105, this.surfaceZ(x, 0.105) + 0.05);
+        },
+        () => 0.013,
+      );
+      group.add(bridge.mesh);
+      for (const sgn of [-1, 1] as const) {
+        const arm = new TaperTube3D(12, 5, frameMat, 12);
+        arm.update(
+          (t, out) => {
+            const x = sgn * mix(0.40, 0.50, t);
+            const y = mix(0.115, 0.05, t);
+            out.set(x, y, this.surfaceZ(x, y) + 0.045 - t * 0.06);
+          },
+          () => 0.011,
+        );
+        group.add(arm.mesh);
+      }
+    }
+
+    group.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh) mesh.frustumCulled = false;
+    });
+    this.headMount.add(group);
+    this.accessoryGroup = group;
+  }
+
   private surfaceZ(x: number, y: number): number {
     const ly = HEAD_CY + y;
     const R = Math.max(0.05, this.radiusAtY(ly));
@@ -1509,6 +1696,12 @@ export class KuroCatEngine3D {
     this.faceGroup.visible = Boolean(p.nose);
     if (p.nose) this.noseMat.color.set(p.nose);
     if (p.mouth) this.mouthMat.color.set(p.mouth);
+
+    // Character silhouette: ear shape, signature accessories and cheek patches.
+    this.applyEarShape(skin.earShape || 'cat');
+    this.applyAccessories(skin.accessories ?? [], skin.accessoryColor || p.accent);
+    this.cheekOn = Boolean(skin.cheekColor);
+    if (skin.cheekColor) this.blushMat.color.set(skin.cheekColor);
 
     const lashCol = p.isDarkFur ? '#0b0c10' : p.lid;
     for (const e of this.eyes) {
@@ -2207,7 +2400,11 @@ export class KuroCatEngine3D {
       const airplaneFold = cross * 0.56;
       e.group.rotation.z = -e.s * (e.tilt + airplaneFold - earState * 0.28 + flick);
       e.group.rotation.x = -0.06 - cross * 0.14 + curious * 0.10;
-      e.group.position.set(e.s * (0.295 + cross * 0.06), 0.255 - cross * 0.045, -0.015);
+      e.group.position.set(
+        e.s * (e.baseX + cross * 0.06),
+        e.baseY - cross * 0.045,
+        e.baseZ,
+      );
     }
 
     // 7) Iconic KuroCat Eyes: open / curious / grumpy zero-seam / petting lazy slits / sleep arcs
@@ -2227,7 +2424,8 @@ export class KuroCatEngine3D {
     const isBlinkClosed = !isSleepOrPrivacy && !isPetSquint && blinkClose > 0.58;
     const showOpenEye = !isSleepOrPrivacy && !isPetSquint && !isBlinkClosed;
 
-    this.blushMat.opacity += ((petActive ? 0.46 : 0) - this.blushMat.opacity) * approach(8, dt);
+    const blushTarget = this.cheekOn ? 0.74 : petActive ? 0.46 : 0;
+    this.blushMat.opacity += (blushTarget - this.blushMat.opacity) * approach(8, dt);
     catAudio.setPurrIntensity(petActive ? 0.85 : 0);
 
     const pal = this.currentPalette;

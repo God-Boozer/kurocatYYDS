@@ -1,4 +1,4 @@
-import type { CatPattern, CatSkinConfig, CatSpot } from './catSkins';
+import type { CatAccessory, CatEarShape, CatPattern, CatSkinConfig, CatSpot } from './catSkins';
 
 /**
  * KuroCat Pet Designer
@@ -647,6 +647,14 @@ const NEON_WORDS = ['赛博', '霓虹', '科技', '未来', '发光', '荧光', 
 /* Prompt analysis                                                     */
 /* ------------------------------------------------------------------ */
 
+/** Silhouette extras detected from the prompt (or passed straight from a character match). */
+interface PetShape {
+  earShape: CatEarShape;
+  accessories: CatAccessory[];
+  accessoryColor: string | null;
+  cheek: string | null;
+}
+
 interface Analysis {
   mood: MoodDef;
   themes: FurTheme[];
@@ -657,7 +665,53 @@ interface Analysis {
   emoji: string | null;
   fluffy: boolean;
   spotsRequested: boolean;
+  shape?: PetShape;
 }
+
+const EAR_SHAPE_WORDS: [CatEarShape, RegExp][] = [
+  ['long', /长耳|尖耳|大耳|立耳|兔耳|rabbit|bunny|long ears|tall ears/],
+  ['round', /圆耳|小圆耳|熊耳|虎耳|round ears/],
+  ['fold', /垂耳|折耳|耷拉|软耳|floppy|folded ears/],
+];
+
+const DECOR_WORDS: [CatAccessory, RegExp][] = [
+  ['bow', /蝴蝶结|领结|发结|蝴蝶|bow|ribbon/],
+  ['bell', /铃铛|铜铃|颈铃|bell/],
+  ['glasses', /眼镜|墨镜|护目镜|glasses|spectacles|blindfold/],
+  ['ahoge', /呆毛|翘毛|小呆毛|ahoge/],
+  ['headband', /发带|头带|金箍|头巾|headband|hairband/],
+  ['hat', /帽子|礼帽|贝雷帽|警官帽|飞行员帽|hat|cap|beret/],
+];
+
+const ACCESSORY_LABELS: Record<CatAccessory, string> = {
+  bow: '蝴蝶结',
+  bell: '铃铛',
+  glasses: '眼镜',
+  ahoge: '呆毛',
+  headband: '发带',
+  hat: '帽子',
+};
+
+/** Picks up silhouette words so a hand-written prompt can also shape the pet. */
+function detectShape(prompt: string): PetShape {
+  let earShape: CatEarShape = 'cat';
+  for (const [shape, re] of EAR_SHAPE_WORDS) {
+    if (re.test(prompt)) {
+      earShape = shape;
+      break;
+    }
+  }
+  const accessories = DECOR_WORDS.filter(([, re]) => re.test(prompt)).map(([id]) => id);
+  const cheek = /腮红|脸红|红脸蛋|大腮红|blush/.test(prompt) ? '#f2879f' : null;
+  return { earShape, accessories, accessoryColor: null, cheek };
+}
+
+const SHAPE_LABELS: Record<CatEarShape, string> = {
+  cat: '尖耳朵',
+  long: '长耳朵',
+  round: '圆耳朵',
+  fold: '垂耳',
+};
 
 function detectMood(prompt: string): MoodDef {
   let best: { mood: MoodDef; idx: number } | null = null;
@@ -1077,7 +1131,8 @@ function buildSkin(analysis: Analysis, prompt: string, seed: number): CatSkinCon
 
   const fluffy = analysis.fluffy;
   const tailStripes = pattern === 'tabby' || /条纹|虎斑|尾巴纹/.test(prompt);
-  const earTuft = /耳毛|长耳|猞狸|lynx/.test(prompt) || rng() < 0.14;
+  const shape: PetShape = analysis.shape ?? detectShape(prompt);
+  const earTuft = /耳毛|猞狸|lynx/.test(prompt) || rng() < 0.14;
   const eyeCatchlight = analysis.mood.id !== 'cool' && (!veryDark || rng() < 0.45);
   const squintGlowColor =
     mood.id === 'cyber' || mood.id === 'dreamy' ? rgba(analysis.accent, 0.55) : null;
@@ -1131,6 +1186,10 @@ function buildSkin(analysis: Analysis, prompt: string, seed: number): CatSkinCon
     armCreaseColor,
     accentColor: accent,
     accentSideColor: accentSide,
+    earShape: shape.earShape,
+    accessories: shape.accessories,
+    accessoryColor: shape.accessoryColor ?? accent,
+    cheekColor: shape.cheek,
     spots,
   } as CatSkinConfig;
 }
@@ -1178,6 +1237,7 @@ export function generateCatFromPrompt(prompt: string, seed = Date.now()): PetDes
     /蓬松|毛茸茸|长毛|fluffy|绒毛|软毛/.test(cleanPrompt) ||
     ((mood.id === 'sweet' || mood.id === 'dreamy' || mood.id === 'natural') && seed % 3 === 0);
   const spotsRequested = /斑点|斑块|花纹|斑纹|星点|spot|patch/.test(cleanPrompt);
+  const shape = detectShape(cleanPrompt);
 
   const analysis: Analysis = {
     mood,
@@ -1189,6 +1249,7 @@ export function generateCatFromPrompt(prompt: string, seed = Date.now()): PetDes
     emoji,
     fluffy,
     spotsRequested,
+    shape,
   };
 
   const cat = buildSkin(analysis, cleanPrompt, seed);
@@ -1199,6 +1260,8 @@ export function generateCatFromPrompt(prompt: string, seed = Date.now()): PetDes
   if (cat.earTuftColor) traits.push('耳尖毛');
   if (mood.id === 'cyber' || mood.id === 'dreamy') traits.push('微光眼');
   if (cat.eyeCatchlight) traits.push('亮眸');
+  if (cat.earShape && cat.earShape !== 'cat') traits.push(SHAPE_LABELS[cat.earShape]);
+  for (const accessory of cat.accessories ?? []) traits.push(ACCESSORY_LABELS[accessory] ?? accessory);
 
   const summary: PetDesignSummary = {
     moodLabel: mood.label,
@@ -1232,6 +1295,11 @@ export interface PalettePetInput {
   accent?: string;
   pattern?: CatPattern;
   fluffy?: boolean;
+  /** Character silhouette extras — what makes a match look like the character. */
+  earShape?: CatEarShape;
+  accessories?: CatAccessory[];
+  accessoryColor?: string;
+  cheek?: string;
 }
 
 function inferPatternFromPalette(input: PalettePetInput): CatPattern {
@@ -1252,6 +1320,17 @@ function inferPatternFromPalette(input: PalettePetInput): CatPattern {
  * then re-applies the explicit markings so the coat stays faithful to the
  * reference instead of being re-derived by the pattern heuristics.
  */
+/**
+ * Accessories drawn in the character accent can vanish against same-hued fur
+ * (Miku's teal headband on teal fur). Nudge them away from the coat lightness.
+ */
+function contrastAccessory(color: string, fur: string): string {
+  const a = luminance(color);
+  const b = luminance(fur);
+  if (Math.abs(a - b) >= 0.22) return color;
+  return b > 0.5 ? darken(color, 0.55) : lighten(color, 0.46);
+}
+
 export function generateCatFromPalette(input: PalettePetInput, seed = Date.now()): PetDesignResult {
   const fur = input.fur || '#c9a37a';
   const eyeTop = input.eye || '#c98a2e';
@@ -1316,6 +1395,15 @@ export function generateCatFromPalette(input: PalettePetInput, seed = Date.now()
     emoji: input.emoji ?? '🐱',
     fluffy: Boolean(input.fluffy),
     spotsRequested: false,
+    shape: {
+      earShape: input.earShape ?? 'cat',
+      accessories: input.accessories ?? [],
+      accessoryColor: contrastAccessory(
+        input.accessoryColor ?? input.accent ?? eyeTop,
+        fur,
+      ),
+      cheek: input.cheek ?? null,
+    },
   };
 
   const cat = buildSkin(analysis, prompt, seed);
@@ -1354,6 +1442,8 @@ export function generateCatFromPalette(input: PalettePetInput, seed = Date.now()
   if (cat.tailStripes) traits.push('环纹尾');
   if (cat.spots && cat.spots.length > 0) traits.push('专属斑纹');
   if (cat.earTuftColor) traits.push('耳尖毛');
+  if (cat.earShape && cat.earShape !== 'cat') traits.push(SHAPE_LABELS[cat.earShape]);
+  for (const accessory of cat.accessories ?? []) traits.push(ACCESSORY_LABELS[accessory] ?? accessory);
 
   const summary: PetDesignSummary = {
     moodLabel: '还原',

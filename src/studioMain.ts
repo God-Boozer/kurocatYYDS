@@ -310,6 +310,21 @@ function setPrompt(prompt: string, generate = true): void {
 /* Character search                                                    */
 /* ------------------------------------------------------------------ */
 
+const EAR_SHAPE_PROMPT: Record<string, string> = {
+  long: '长耳朵',
+  round: '圆耳朵',
+  fold: '垂耳',
+};
+
+const ACCESSORY_PROMPT: Record<string, string> = {
+  bow: '蝴蝶结',
+  bell: '铃铛',
+  glasses: '眼镜',
+  ahoge: '呆毛',
+  headband: '发带',
+  hat: '帽子',
+};
+
 function describeCharacterPrompt(match: CharacterMatch): string {
   const palette = match.palette;
   const parts = [`${match.name}风格`, `${colorName(palette.fur)}毛色`];
@@ -319,6 +334,14 @@ function describeCharacterPrompt(match: CharacterMatch): string {
   if (palette.mask) parts.push('深色重点色');
   if (palette.patch) parts.push('三色斑块');
   if (palette.fluffy) parts.push('尾巴蓬松');
+  if (palette.earShape && EAR_SHAPE_PROMPT[palette.earShape]) {
+    parts.push(EAR_SHAPE_PROMPT[palette.earShape]);
+  }
+  for (const item of palette.accessories ?? []) {
+    const word = ACCESSORY_PROMPT[item];
+    if (word) parts.push(word);
+  }
+  if (palette.cheek) parts.push('腮红');
   return parts.join('，');
 }
 
@@ -333,8 +356,8 @@ function applyCharacterMatch(match: CharacterMatch): void {
   void stage.offsetWidth;
   stage.classList.add('flash');
   searchResults.classList.add('hidden');
-  searchHint.textContent = `已还原「${match.name}」，下面还能继续改颜色和花纹`;
-  toast(`已按「${match.name}」配色生成`);
+  searchHint.textContent = `已还原「${match.name}」的外形与配色，下面还能继续微调`;
+  toast(`已还原「${match.name}」（耳朵 / 配件 / 配色）`);
 }
 
 function renderSearchResults(matches: CharacterMatch[], query: string): void {
@@ -362,14 +385,23 @@ function renderSearchResults(matches: CharacterMatch[], query: string): void {
     const nameEl = btn.querySelector('strong');
     const metaEl = btn.querySelector('small');
     if (nameEl) nameEl.textContent = match.name;
-    if (metaEl) metaEl.textContent = [match.source, match.origin].filter(Boolean).join(' · ');
+    const shapeBits = [
+      match.palette.earShape && EAR_SHAPE_PROMPT[match.palette.earShape],
+      ...(match.palette.accessories ?? []).map((item) => ACCESSORY_PROMPT[item]),
+      match.palette.cheek ? '腮红' : '',
+    ].filter(Boolean);
+    if (metaEl) {
+      metaEl.textContent = [match.source, match.origin, shapeBits.length ? shapeBits.join(' + ') : '']
+        .filter(Boolean)
+        .join(' · ');
+    }
 
     btn.addEventListener('click', () => applyCharacterMatch(match));
     searchResults.appendChild(btn);
   }
 
   searchResults.classList.remove('hidden');
-  searchHint.textContent = `找到 ${matches.length} 个，点击即可生成（毛色 / 眼睛 / 键盘光已自动适配）`;
+  searchHint.textContent = `找到 ${matches.length} 个，点击即可变成该角色（耳朵 / 配件 / 毛色 / 眼睛一起还原）`;
 }
 
 async function runCharacterSearch(): Promise<void> {

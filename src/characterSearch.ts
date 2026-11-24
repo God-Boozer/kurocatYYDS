@@ -1,3 +1,4 @@
+import type { CatAccessory, CatEarShape } from './catSkins';
 import type { CharacterPalette } from './characterLibrary';
 import { findInLibrary } from './characterLibrary';
 
@@ -85,6 +86,27 @@ function colorWordNear(text: string, index: number): ColorWord | null {
   return best;
 }
 
+/** Silhouette hints (ears, signature accessories) found in a description. */
+function shapeHints(text: string): Pick<CharacterPalette, 'earShape' | 'accessories' | 'cheek'> {
+  const t = normalizeText(text);
+  const out: Pick<CharacterPalette, 'earShape' | 'accessories' | 'cheek'> = {};
+  if (/(rabbit|bunny|usagi|long ears|tall ears|bunny ears)/.test(t)) out.earShape = 'long';
+  else if (/(droop|floppy|lop ears|folded ears)/.test(t)) out.earShape = 'fold';
+  else if (/(round ears|bear ears|teddy|round ear)/.test(t)) out.earShape = 'round';
+
+  const accessories: CatAccessory[] = [];
+  if (/(ribbon|bow tie|bowtie|hair bow|bow\b)/.test(t)) accessories.push('bow');
+  if (/(bell\b|cowbell|jingle)/.test(t)) accessories.push('bell');
+  if (/(glasses|spectacles|sunglasses|blindfold)/.test(t)) accessories.push('glasses');
+  if (/(ahoge|cowlick|antenna hair)/.test(t)) accessories.push('ahoge');
+  if (/(headband|hairband)/.test(t)) accessories.push('headband');
+  if (/(\bhat\b|\bcap\b|beret|helmet|crown)/.test(t)) accessories.push('hat');
+  if (accessories.length > 0) out.accessories = accessories;
+
+  if (/(blush|red cheeks|rosy cheeks)/.test(t)) out.cheek = '#f2879f';
+  return out;
+}
+
 /**
  * Pulls fur / eye / accent colours out of a free-text character description
  * (English, Japanese or Chinese). Returns null when nothing is recognisable.
@@ -147,6 +169,7 @@ export function paletteFromDescription(
     eye,
     accent: accent ?? eye,
     pattern,
+    ...shapeHints(text),
   };
 }
 
@@ -199,6 +222,7 @@ export function paletteFromName(name: string): CharacterPalette {
     eyeBottom: hueToHex(hue2, 0.6, 0.78),
     accent: hueToHex(hue2, 0.7, 0.62),
     pattern: hue % 5 === 0 ? 'tabby' : hue % 3 === 0 ? 'bicolor' : 'solid',
+    ...shapeHints(name),
   };
 }
 

@@ -8,7 +8,7 @@ import {
   resolveKeyByVk,
 } from './keyboardLayout';
 import { catAudio } from './audio';
-import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
+import { resolveCustomSkin, type CatEarShape, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
 
 export const LOGICAL_W = 420;
@@ -4562,19 +4562,37 @@ export class KuroCatEngine {
       ctx.translate(sideSign * (33 + airplaneSpread) + this.faceTurnX * 0.18, -28 + airplaneDrop);
       ctx.rotate(sideSign * (0.08 - earPerk + twitch));
 
-      const earPath = () => {
+      // Ear silhouette is per-character: long (Miku / Stitch), round (Doraemon / Kirby),
+      // fold (Pochacco) or the classic pointed cat triangle.
+      const shape: CatEarShape = s.earShape || 'cat';
+      const earTipY = shape === 'long' ? -44 : shape === 'round' ? -18 : shape === 'fold' ? -17 : -23;
+      const earPath = (open = false) => {
         ctx.beginPath();
-        ctx.moveTo(sideSign * 19, 20);
-        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
-        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -21, 8);
-        ctx.closePath();
+        if (shape === 'long') {
+          ctx.moveTo(sideSign * 17, 20);
+          ctx.bezierCurveTo(sideSign * 18, -12, sideSign * 13, -32, sideSign * 4, -44);
+          ctx.bezierCurveTo(sideSign * -7, -38, sideSign * -16, -12, sideSign * -20, 9);
+        } else if (shape === 'round') {
+          ctx.moveTo(sideSign * 19, 16);
+          ctx.bezierCurveTo(sideSign * 22, -4, sideSign * 13, -19, sideSign * 1, -18);
+          ctx.bezierCurveTo(sideSign * -11, -17, sideSign * -18, -2, sideSign * -17, 12);
+        } else if (shape === 'fold') {
+          ctx.moveTo(sideSign * 19, 18);
+          ctx.bezierCurveTo(sideSign * 27, -2, sideSign * 32, -15, sideSign * 22, -17);
+          ctx.bezierCurveTo(sideSign * 8, -16, sideSign * 0, 6, sideSign * -14, 11);
+        } else {
+          ctx.moveTo(sideSign * 19, 20);
+          ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
+          ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -21, 8);
+        }
+        if (!open) ctx.closePath();
       };
 
       const baseEarCol =
         s.pattern === 'calico' && sideSign === -1
           ? s.maskColor || s.earOuterColor
           : s.earOuterColor;
-      const earGrad = ctx.createLinearGradient(0, -23, 0, 18);
+      const earGrad = ctx.createLinearGradient(0, earTipY, 0, 18);
       earGrad.addColorStop(0.0, s.earTipColor || baseEarCol);
       earGrad.addColorStop(1.0, baseEarCol);
       ctx.fillStyle = earGrad;
@@ -4588,21 +4606,19 @@ export class KuroCatEngine {
         ctx.strokeStyle = s.outlineColor;
         ctx.lineWidth = 1.85;
         ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(sideSign * 19, 17);
-        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
-        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -19, 5);
+        earPath(true);
         ctx.stroke();
       }
 
       if (s.earInnerColor) {
+        ctx.save();
+        ctx.translate(0, -1);
+        ctx.scale(0.6, 0.62);
+        ctx.translate(0, 1);
         ctx.fillStyle = s.earInnerColor;
-        ctx.beginPath();
-        ctx.moveTo(sideSign * 11, 10);
-        ctx.bezierCurveTo(sideSign * 11, -3, sideSign * 7, -13, sideSign * 2, -11);
-        ctx.bezierCurveTo(sideSign * -4, -9, sideSign * -9, -1, sideSign * -10, 8);
-        ctx.closePath();
+        earPath();
         ctx.fill();
+        ctx.restore();
       }
 
       if (s.earTuftColor) {
@@ -4627,8 +4643,18 @@ export class KuroCatEngine {
     ctx.shadowOffsetY = 0;
     const wShift = this.faceTurnX * 0.72;
 
-    // Blush on petting
-    if (s.blushColor && this.squintAmount > 0.12) {
+    // Signature cheek patches (Pikachu / Kirby / Kumamon style) — always on, and a
+    // soft blush while petting.
+    if (s.cheekColor) {
+      ctx.save();
+      ctx.fillStyle = s.cheekColor;
+      ctx.globalAlpha = 0.88;
+      ctx.beginPath();
+      ctx.ellipse(wShift - 29, 11, 10.5, 6.4, -0.08, 0, Math.PI * 2);
+      ctx.ellipse(wShift + 29, 11, 10.5, 6.4, 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (s.blushColor && this.squintAmount > 0.12) {
       ctx.save();
       ctx.globalAlpha = 0.42 * this.squintAmount;
       ctx.fillStyle = s.blushColor;
@@ -4681,9 +4707,169 @@ export class KuroCatEngine {
     }
 
     this.drawCustomEyes(ctx, s, wShift, -1);
+    this.drawCustomAccessories(ctx, s, wShift);
     this.drawHeadphonesFront(ctx);
 
     ctx.restore();
+    ctx.restore();
+  }
+
+  /**
+   * Signature accessories drawn in head-space so a matched character keeps its
+   * silhouette: ahoge, headband, hat, bow, glasses and a collar bell.
+   */
+  private drawCustomAccessories(
+    ctx: CanvasRenderingContext2D,
+    s: ResolvedSkin,
+    wShift: number,
+  ): void {
+    const items = s.accessories;
+    if (!items || items.length === 0) return;
+    const accent = s.accessoryColor || s.accentColor;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // 1) Ahoge — the single springy hair strand on the crown.
+    if (items.includes('ahoge')) {
+      const sway = Math.sin(this.elapsed * 1.7) * 2.2;
+      ctx.strokeStyle = s.outlineColor || s.furSecondaryColor;
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(wShift + 1, -29);
+      ctx.bezierCurveTo(wShift + 3 + sway, -40, wShift + 13 + sway, -45, wShift + 7 + sway, -53);
+      ctx.stroke();
+      ctx.strokeStyle = s.furSecondaryColor;
+      ctx.lineWidth = 2.1;
+      ctx.beginPath();
+      ctx.moveTo(wShift + 1, -30);
+      ctx.bezierCurveTo(wShift + 3 + sway, -40, wShift + 13 + sway, -45, wShift + 7 + sway, -53);
+      ctx.stroke();
+    }
+
+    // 2) Hat — rounded cap with a small brim.
+    if (items.includes('hat')) {
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 33, -20);
+      ctx.bezierCurveTo(wShift - 33, -48, wShift + 33, -48, wShift + 33, -20);
+      ctx.bezierCurveTo(wShift + 19, -25, wShift - 19, -25, wShift - 33, -20);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20, 22, 30, 0.34)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      // Brim so the dome reads as a hat rather than a bump.
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+      ctx.beginPath();
+      ctx.ellipse(wShift, -20, 36, 6.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.ellipse(wShift, -21, 35, 5.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.beginPath();
+      ctx.ellipse(wShift - 9, -38, 12, 4.8, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 3) Headband — band across the forehead (Miku / Wukong).
+    if (items.includes('headband')) {
+      // Sits just above the eyes so it reads as a hairband, not a stripe on the crown.
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 6.6;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 37, -9);
+      ctx.quadraticCurveTo(wShift, -24, wShift + 37, -9);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1.9;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 34, -11);
+      ctx.quadraticCurveTo(wShift, -25, wShift + 34, -11);
+      ctx.stroke();
+    }
+
+    // 4) Bow — ribbon sitting on the character's right ear.
+    if (items.includes('bow')) {
+      ctx.save();
+      ctx.translate(wShift - 33, -30);
+      ctx.rotate(-0.22);
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.ellipse(-9, 0, 10, 7.2, -0.36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(9, 0, 10, 7.2, 0.36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
+      ctx.beginPath();
+      ctx.ellipse(-10, -1.6, 4.4, 2.6, -0.36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, 3.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 5) Collar bell — small gold bell on the chest.
+    if (items.includes('bell')) {
+      ctx.strokeStyle = 'rgba(34, 38, 48, 0.72)';
+      ctx.lineWidth = 3.4;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 30, 31);
+      ctx.quadraticCurveTo(wShift, 41, wShift + 30, 31);
+      ctx.stroke();
+      const bellColor = '#f5cd4a';
+      ctx.fillStyle = bellColor;
+      ctx.beginPath();
+      ctx.arc(wShift, 43, 6.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(120, 88, 20, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 4.2, 44.4);
+      ctx.lineTo(wShift + 4.2, 44.4);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.arc(wShift - 2.2, 41, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 6) Glasses — round frames in front of the eyes (Gojo / five-colour frames).
+    if (items.includes('glasses')) {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(wShift - 23, -1, 17.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(wShift + 23, -1, 17.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(wShift - 6.5, -3);
+      ctx.quadraticCurveTo(wShift, -7, wShift + 6.5, -3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(wShift - 40, -4);
+      ctx.lineTo(wShift - 47, 4);
+      ctx.moveTo(wShift + 40, -4);
+      ctx.lineTo(wShift + 47, 4);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.beginPath();
+      ctx.arc(wShift - 28, -7, 6.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(wShift + 18, -7, 6.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 

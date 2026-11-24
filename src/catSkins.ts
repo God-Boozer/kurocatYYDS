@@ -10,6 +10,9 @@ export interface CatSpot {
 }
 
 export type CatPattern = 'solid' | 'bicolor' | 'tuxedo' | 'tabby' | 'calico' | 'siamese';
+/** Silhouette variants so a character skin can read as that character. */
+export type CatEarShape = 'cat' | 'round' | 'long' | 'fold';
+export type CatAccessory = 'bow' | 'bell' | 'glasses' | 'ahoge' | 'headband' | 'hat';
 
 export interface CatSkinConfig {
   id: string;
@@ -60,6 +63,12 @@ export interface CatSkinConfig {
   accentColor?: string;
   accentSideColor?: string;
 
+  /** Character silhouette extras (used by the studio's character search). */
+  earShape?: CatEarShape;
+  cheekColor?: string;
+  accessories?: CatAccessory[];
+  accessoryColor?: string;
+
   spots?: CatSpot[];
 }
 
@@ -103,6 +112,10 @@ export interface ResolvedSkin {
   armCreaseColor: string | null;
   accentColor: string;
   accentSideColor: string;
+  earShape: CatEarShape;
+  cheekColor: string | null;
+  accessories: CatAccessory[];
+  accessoryColor: string;
   spots: CatSpot[];
 }
 
@@ -119,6 +132,12 @@ function parseHexLuminance(hex: string): number {
 
 export function isLightColor(hex: string): boolean {
   return parseHexLuminance(hex) > 0.48;
+}
+
+const ACCESSORY_IDS: CatAccessory[] = ['bow', 'bell', 'glasses', 'ahoge', 'headband', 'hat'];
+
+function isAccessory(value: string): value is CatAccessory {
+  return (ACCESSORY_IDS as string[]).includes(value);
 }
 
 export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
@@ -182,6 +201,10 @@ export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
         : (!pawIsLight ? 'rgba(216, 218, 222, 0.62)' : null),
     accentColor: raw.accentColor || '#d2f244',
     accentSideColor: raw.accentSideColor || '#8cb014',
+    earShape: raw.earShape || 'cat',
+    cheekColor: raw.cheekColor || null,
+    accessories: Array.isArray(raw.accessories) ? raw.accessories.filter(isAccessory) : [],
+    accessoryColor: raw.accessoryColor || '#ff7ab8',
     spots: Array.isArray(raw.spots) ? raw.spots : [],
   };
 }
