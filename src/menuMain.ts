@@ -451,6 +451,15 @@ async function bootstrap(): Promise<void> {
     }
 
     switch (target.dataset.action) {
+      case 'open-studio': {
+        if ('__TAURI_INTERNALS__' in window || '__TAURI__' in window) {
+          void invoke('open_studio');
+        } else {
+          window.open('./studio.html', '_blank', 'noopener');
+        }
+        closeMenu();
+        break;
+      }
       case 'toggle-privacy':
         void applySettingsPatch({ privacyPasswordGuard: !(settings.privacyPasswordGuard !== false) });
         break;

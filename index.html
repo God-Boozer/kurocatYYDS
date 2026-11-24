@@ -6,6 +6,14 @@
     <title>KuroCat</title>
   </head>
   <body>
+    <script>
+      // The pet window itself only runs inside the Tauri shell. When this page is
+      // opened in a plain browser (web preview), send the visitor straight to the
+      // character studio, which works without Tauri.
+      if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) {
+        location.replace('./studio.html');
+      }
+    </script>
     <canvas id="pet-canvas"></canvas>
     <canvas id="pet-canvas-3d" class="hidden"></canvas>
 
@@ -41,12 +49,16 @@
     <div id="context-menu" class="context-menu hidden">
       <div class="menu-header" id="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
       <div class="menu-scale-row">
-        <span class="menu-scale-label">角色外观（支持 MCP 定制）</span>
+        <span class="menu-scale-label">角色外观（支持工坊 / MCP 定制）</span>
         <div class="breed-pills" id="breed-pills">
           <button class="breed-pill active" data-breed="black">🐈‍⬛ 小黑猫</button>
           <button class="breed-pill" data-breed="ragdoll">🐱 布偶猫</button>
           <button class="breed-pill" data-breed="dafeiyu">🐳 大肥鱼</button>
         </div>
+        <button class="menu-item studio-entry" data-action="open-studio" id="btn-open-studio" title="打开角色工坊，描述一句话即可生成新桌宠">
+          <span>✨ 新增角色 · 描述生成</span>
+          <span class="menu-hint">AI 捏猫</span>
+        </button>
       </div>
       <div class="menu-scale-row" id="render-mode-row">
         <span class="menu-scale-label">视觉模式（可选 3D / 2D）</span>

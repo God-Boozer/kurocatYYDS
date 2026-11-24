@@ -1,0 +1,44 @@
+/* Subset of Noto Sans SC covering every character used by the UI strings.
+   Anything outside the subset (user-typed names, prompts) falls back to the
+   system font stack below, so the app never renders missing-glyph boxes. */
+@font-face {
+  font-family: "Noto Sans SC UI";
+  src: url("/fonts/noto-sans-sc-ui-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC UI";
+  src: url("/fonts/noto-sans-sc-ui-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC UI";
+  src: url("/fonts/noto-sans-sc-ui-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC UI";
+  src: url("/fonts/noto-sans-sc-ui-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Small colour-emoji subset (only the glyphs the UI actually uses) so the
+   interface looks identical on machines without an emoji font installed. */
+@font-face {
+  font-family: "KuroCat UI Emoji";
+  src: url("/fonts/noto-color-emoji-ui.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

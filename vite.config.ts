@@ -11,12 +11,15 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         menu: path.resolve(__dirname, 'menu.html'),
         obs: path.resolve(__dirname, 'obs.html'),
+        studio: path.resolve(__dirname, 'studio.html'),
       },
     },
   },
   server: {
     port: 1420,
     strictPort: true,
+    // Allow Arena / remote dev-preview hostnames (Tauri dev still uses localhost:1420).
+    allowedHosts: true,
     watch: {
       ignored: ['**/src-tauri/**'],
     },
