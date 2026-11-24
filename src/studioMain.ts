@@ -316,6 +316,24 @@ const EAR_SHAPE_PROMPT: Record<string, string> = {
   fold: '垂耳',
 };
 
+const SPECIES_PROMPT: Record<string, string> = {
+  rabbit: '兔子',
+  hedgehog: '刺猬',
+  bear: '小熊',
+  blob: '圆滚滚的小家伙',
+  ghost: '幽灵',
+  duck: '鸭子',
+  star: '海星',
+};
+
+const TAIL_PROMPT: Record<string, string> = {
+  cat: '',
+  bolt: '闪电尾巴',
+  puff: '圆球尾巴',
+  stub: '短尾巴',
+  none: '没有尾巴',
+};
+
 const ACCESSORY_PROMPT: Record<string, string> = {
   bow: '蝴蝶结',
   bell: '铃铛',
@@ -337,6 +355,12 @@ function describeCharacterPrompt(match: CharacterMatch): string {
   if (palette.earShape && EAR_SHAPE_PROMPT[palette.earShape]) {
     parts.push(EAR_SHAPE_PROMPT[palette.earShape]);
   }
+  if (palette.species && SPECIES_PROMPT[palette.species]) {
+    parts.push(SPECIES_PROMPT[palette.species]);
+  }
+  if (palette.earTip) parts.push('黑耳尖');
+  const tailWord = TAIL_PROMPT[palette.tailStyle ?? 'cat'];
+  if (tailWord) parts.push(tailWord);
   for (const item of palette.accessories ?? []) {
     const word = ACCESSORY_PROMPT[item];
     if (word) parts.push(word);
@@ -387,6 +411,8 @@ function renderSearchResults(matches: CharacterMatch[], query: string): void {
     if (nameEl) nameEl.textContent = match.name;
     const shapeBits = [
       match.palette.earShape && EAR_SHAPE_PROMPT[match.palette.earShape],
+      match.palette.earTip ? '黑耳尖' : '',
+      TAIL_PROMPT[match.palette.tailStyle ?? 'cat'] ?? '',
       ...(match.palette.accessories ?? []).map((item) => ACCESSORY_PROMPT[item]),
       match.palette.cheek ? '腮红' : '',
     ].filter(Boolean);

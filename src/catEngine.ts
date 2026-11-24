@@ -2477,6 +2477,68 @@ export class KuroCatEngine {
 
     if (this.customSkin) {
       const s = this.customSkin;
+      if (s.tailStyle === 'none') {
+        ctx.restore();
+        return;
+      }
+      if (s.tailStyle === 'bolt') {
+        // Lightning-bolt tail (Pikachu): zig-zag polygon anchored at the hip.
+        const dir = Math.sign(endX - startX) || 1;
+        const w = 15;
+        ctx.shadowColor = 'rgba(20, 18, 12, 0.34)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 2;
+        ctx.fillStyle = s.tailTipColor || s.tailColor;
+        ctx.beginPath();
+        ctx.moveTo(startX - dir * 4, startY + w);
+        ctx.lineTo(startX + dir * 16, startY - w * 0.9);
+        ctx.lineTo(startX + dir * 34, startY + w * 0.15);
+        ctx.lineTo(startX + dir * 52, startY - w * 1.25);
+        ctx.lineTo(startX + dir * 72, startY - w * 0.35);
+        ctx.lineTo(startX + dir * 56, startY + w * 0.9);
+        ctx.lineTo(startX + dir * 30, startY + w * 0.55);
+        ctx.lineTo(startX + dir * 14, startY + w * 1.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = s.outlineColor || 'rgba(40, 32, 20, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      if (s.tailStyle === 'puff' || s.tailStyle === 'stub') {
+        // Round puff (bear / rabbit) or a tiny stub tail.
+        const stub = s.tailStyle === 'stub';
+        const bx = startX + (stub ? 6 : 12) + gentleDrift * 0.2;
+        const by = startY - (stub ? 2 : 4);
+        ctx.shadowColor = 'rgba(24, 20, 16, 0.3)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetY = 1.5;
+        ctx.fillStyle = s.tailColor;
+        ctx.beginPath();
+        ctx.arc(bx, by, stub ? 9 : 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        if (!stub) {
+          ctx.fillStyle = s.tailTipColor;
+          ctx.beginPath();
+          ctx.arc(bx + 2, by - 2, 10, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (s.outlineColor) {
+          ctx.strokeStyle = s.outlineColor;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.arc(bx, by, stub ? 9 : 15, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
       const tailW = s.tailFluffy ? 20.0 : 16.0;
       if (s.outlineColor) {
         ctx.shadowColor = 'rgba(30, 32, 40, 0.22)';
@@ -4610,6 +4672,16 @@ export class KuroCatEngine {
         ctx.stroke();
       }
 
+      // Dark ear tips (Pikachu / Eevee / Stitch style) — a hard band, not a gradient.
+      if (s.earTipCap && s.earTipColor) {
+        ctx.save();
+        earPath();
+        ctx.clip();
+        ctx.fillStyle = s.earTipColor;
+        ctx.fillRect(-48, earTipY - 6, 96, (16 - earTipY) * 0.44 + 6);
+        ctx.restore();
+      }
+
       if (s.earInnerColor) {
         ctx.save();
         ctx.translate(0, -1);
@@ -4665,45 +4737,78 @@ export class KuroCatEngine {
       ctx.restore();
     }
 
-    // Nose & mouth
-    if (s.noseColor) {
-      ctx.fillStyle = s.noseColor;
+    // Nose & mouth — the cat triangle reads as "cat", so other creatures get a
+    // button nose / a plain smile / nothing at all.
+    if (s.faceStyle === 'cat') {
+      if (s.noseColor) {
+        ctx.fillStyle = s.noseColor;
+        ctx.beginPath();
+        ctx.moveTo(wShift - 4.1, 9.6);
+        ctx.quadraticCurveTo(wShift, 8.5, wShift + 4.1, 9.6);
+        ctx.quadraticCurveTo(wShift + 3.2, 13.8, wShift, 14.3);
+        ctx.quadraticCurveTo(wShift - 3.2, 13.8, wShift - 4.1, 9.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (s.mouthColor) {
+        ctx.strokeStyle = s.mouthColor;
+        ctx.lineWidth = 1.35;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(wShift - 5.8, 16.6);
+        ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
+        ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+        ctx.stroke();
+      }
+    } else if (s.faceStyle === 'button') {
+      const noseCol = s.noseColor || '#5c4a44';
+      ctx.fillStyle = noseCol;
       ctx.beginPath();
-      ctx.moveTo(wShift - 4.1, 9.6);
-      ctx.quadraticCurveTo(wShift, 8.5, wShift + 4.1, 9.6);
-      ctx.quadraticCurveTo(wShift + 3.2, 13.8, wShift, 14.3);
-      ctx.quadraticCurveTo(wShift - 3.2, 13.8, wShift - 4.1, 9.6);
-      ctx.closePath();
+      ctx.ellipse(wShift, 12.2, 4.4, 3.5, 0, 0, Math.PI * 2);
       ctx.fill();
-    }
-    if (s.mouthColor) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(wShift - 1.3, 11.2, 1.4, 1.0, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      if (s.mouthColor) {
+        ctx.strokeStyle = s.mouthColor;
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(wShift - 4.6, 18.4);
+        ctx.quadraticCurveTo(wShift, 20.8, wShift + 4.6, 18.4);
+        ctx.stroke();
+      }
+    } else if (s.mouthColor) {
+      // No nose at all (ghost / duck / blob) — a plain little smile keeps it alive.
       ctx.strokeStyle = s.mouthColor;
-      ctx.lineWidth = 1.35;
+      ctx.lineWidth = 1.5;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(wShift - 5.8, 16.6);
-      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
-      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+      ctx.moveTo(wShift - 5.0, 15.2);
+      ctx.quadraticCurveTo(wShift, 18.4, wShift + 5.0, 15.2);
       ctx.stroke();
     }
 
-    // Whiskers
-    ctx.strokeStyle = s.whiskerColor;
-    ctx.lineWidth = 1.1;
-    ctx.lineCap = 'round';
-    const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
-    const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
-    for (let i = 0; i < 3; i++) {
-      const wy = 16 + i * 5.0;
-      const slant = 2.0 + i * 1.1;
-      ctx.beginPath();
-      ctx.moveTo(-34 + wShift, wy);
-      ctx.lineTo(-34 + wShift - leftLen, wy + slant);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(34 + wShift, wy);
-      ctx.lineTo(34 + wShift + rightLen, wy + slant);
-      ctx.stroke();
+    // Whiskers only on actual cats — no cat whiskers on Pikachu / Doraemon / Kirby.
+    if (s.whiskers) {
+      ctx.strokeStyle = s.whiskerColor;
+      ctx.lineWidth = 1.1;
+      ctx.lineCap = 'round';
+      const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
+      const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
+      for (let i = 0; i < 3; i++) {
+        const wy = 16 + i * 5.0;
+        const slant = 2.0 + i * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(-34 + wShift, wy);
+        ctx.lineTo(-34 + wShift - leftLen, wy + slant);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(34 + wShift, wy);
+        ctx.lineTo(34 + wShift + rightLen, wy + slant);
+        ctx.stroke();
+      }
     }
 
     this.drawCustomEyes(ctx, s, wShift, -1);
@@ -4957,8 +5062,16 @@ export class KuroCatEngine {
       ctx.save();
       ctx.clip();
       if (openRy > 3.2) {
-        const pupilRx = Math.min(rx - 2.4, (6.2 + curious * 4.2 + this.typingEnergy * 0.8) * (1 - cross * 0.34));
-        const pupilRy = Math.min(openRy - 1.4, (8.8 + curious * 1.9) * (1 - cross * 0.08));
+        // Cats keep the tall oval pupil; other creatures get a round button pupil.
+        const roundPupil = s.faceStyle !== 'cat';
+        const pupilRx = Math.min(
+          rx - 2.4,
+          (roundPupil ? 8.4 : 6.2 + curious * 4.2 + this.typingEnergy * 0.8) * (1 - cross * 0.34),
+        );
+        const pupilRy = Math.min(
+          openRy - 1.4,
+          (roundPupil ? 8.4 : 8.8 + curious * 1.9) * (1 - cross * 0.08),
+        );
         const maxTravelX = Math.max(2.6, rx - pupilRx - 1.0);
         const maxTravelY = Math.max(2.2, openRy - pupilRy - 0.6);
         const px = Math.max(-maxTravelX, Math.min(maxTravelX, this.eyeLookX * maxTravelX));
