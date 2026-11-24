@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KuroCat · 角色工坊</title>
+    <meta name="color-scheme" content="dark" />
+  </head>
+  <body class="studio-body">
+    <div class="studio-ambient" aria-hidden="true"></div>
+
+    <div class="studio-shell">
+      <header class="studio-topbar">
+        <div class="studio-brand">
+          <div class="studio-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="12" cy="15.6" rx="5.1" ry="4.2" fill="currentColor" />
+              <ellipse cx="5.1" cy="10.4" rx="2.15" ry="2.7" fill="currentColor" transform="rotate(-22 5.1 10.4)" />
+              <ellipse cx="9.5" cy="6.6" rx="2.05" ry="2.75" fill="currentColor" transform="rotate(-8 9.5 6.6)" />
+              <ellipse cx="14.9" cy="6.5" rx="2.05" ry="2.75" fill="currentColor" transform="rotate(8 14.9 6.5)" />
+              <ellipse cx="19.2" cy="10.2" rx="2.15" ry="2.7" fill="currentColor" transform="rotate(22 19.2 10.2)" />
+            </svg>
+          </div>
+          <div class="studio-brand-text">
+            <strong>KuroCat 角色工坊</strong>
+            <span>描述你想要的桌宠 · 一句话生成</span>
+          </div>
+        </div>
+        <div class="studio-top-right">
+          <span class="studio-live-pill"><i class="live-dot"></i> 实时预览</span>
+          <span class="studio-beta-pill">AI 捏猫</span>
+          <button id="btn-studio-close" class="studio-icon-btn" type="button" title="关闭窗口" aria-label="关闭窗口">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="studio-main">
+        <section class="studio-stage-col">
+          <div class="studio-stage" id="studio-stage">
+            <canvas id="studio-canvas"></canvas>
+            <canvas id="studio-canvas-3d" class="hidden"></canvas>
+
+            <div class="stage-topline">
+              <span class="stage-badge"><i class="live-dot"></i> LIVE</span>
+              <div class="stage-mode-switch" role="group" aria-label="预览模式">
+                <button type="button" data-studio-mode="2d">2D</button>
+                <button type="button" data-studio-mode="3d">3D</button>
+              </div>
+            </div>
+
+            <div class="stage-hint">移动鼠标看眼睛 · 打字看键盘 · 点击舞台可直接试打</div>
+            <div class="stage-status" id="studio-status">正在生成…</div>
+            <div class="stage-loading hidden" id="studio-loading"><span></span> 3D 加载中…</div>
+
+            <input
+              id="stage-type-input"
+              class="stage-type-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-label="试打字输入"
+            />
+          </div>
+
+          <div class="studio-traits" id="studio-traits"></div>
+        </section>
+
+        <aside class="studio-panel">
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <span class="step-num">01</span>
+              <div>
+                <h2>描述你的桌宠</h2>
+                <p>颜色、花纹、眼睛、性格都可以写</p>
+              </div>
+            </div>
+
+            <div class="prompt-wrap">
+              <textarea
+                id="studio-prompt"
+                rows="4"
+                maxlength="240"
+                spellcheck="false"
+                placeholder="例如：一只奶油白的布偶猫，蓝宝石眼睛，粉色小鼻子，尾巴蓬松…"
+              ></textarea>
+              <div class="prompt-foot">
+                <span id="studio-char-count">0 / 240</span>
+                <button id="btn-studio-dice" class="studio-ghost-btn" type="button" title="换一句灵感">🎲 灵感</button>
+              </div>
+            </div>
+
+            <button id="btn-studio-generate" class="studio-primary-btn" type="button">
+              <span>✨ 生成角色</span>
+              <kbd>Ctrl ↵</kbd>
+            </button>
+
+            <div class="inspiration-row" id="inspiration-chips"></div>
+          </section>
+
+          <section class="studio-card" id="studio-result-card">
+            <div class="studio-card-head">
+              <span class="step-num">02</span>
+              <div>
+                <h2>微调并保存</h2>
+                <p>保存后会自动出现在桌面宠物菜单</p>
+              </div>
+            </div>
+
+            <div class="result-head">
+              <button id="studio-emoji" class="result-emoji" type="button" title="点击更换角色图标">🐱</button>
+              <div class="result-id">
+                <input id="studio-name" type="text" maxlength="12" value="我的猫猫" aria-label="角色名字" />
+                <span id="studio-subtitle">—</span>
+              </div>
+            </div>
+            <div class="emoji-pop hidden" id="emoji-pop" role="menu" aria-label="选择角色图标"></div>
+
+            <div class="palette-row" id="studio-palette"></div>
+
+            <div class="tune-grid">
+              <label class="tune-item">
+                <span>毛色</span>
+                <input type="color" id="tune-fur" value="#f2a452" />
+              </label>
+              <label class="tune-item">
+                <span>眼睛</span>
+                <input type="color" id="tune-eye" value="#ffd369" />
+              </label>
+              <label class="tune-item">
+                <span>键盘光</span>
+                <input type="color" id="tune-accent" value="#ffb347" />
+              </label>
+            </div>
+
+            <div class="pattern-row" id="pattern-chips" role="group" aria-label="花纹">
+              <button type="button" data-studio-pattern="solid">纯色</button>
+              <button type="button" data-studio-pattern="tabby">虎斑</button>
+              <button type="button" data-studio-pattern="calico">三花</button>
+              <button type="button" data-studio-pattern="tuxedo">奶牛</button>
+              <button type="button" data-studio-pattern="siamese">暹罗</button>
+              <button type="button" data-studio-pattern="bicolor">布偶</button>
+            </div>
+
+            <label class="fluff-toggle">
+              <input type="checkbox" id="tune-fluffy" />
+              <span class="fluff-track"><i></i></span>
+              <span>蓬松尾巴</span>
+            </label>
+
+            <button id="btn-studio-save" class="studio-primary-btn save-btn" type="button">💾 保存并使用</button>
+            <p class="save-note" id="studio-save-note">保存后会立刻切换桌面宠物，并出现在右键菜单的角色列表里</p>
+
+            <div class="saved-row hidden" id="saved-row">
+              <div class="saved-title">我的角色</div>
+              <div class="saved-chips" id="saved-chips"></div>
+            </div>
+          </section>
+
+          <section class="studio-capabilities">
+            <div><span>👀</span> 眼睛跟随鼠标</div>
+            <div><span>⌨️</span> 打字实时显示在键盘</div>
+            <div><span>🎨</span> 颜色 / 花纹可微调</div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div class="studio-toast hidden" id="studio-toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="/src/studioMain.ts"></script>
+  </body>
+</html>

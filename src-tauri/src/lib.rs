@@ -19,7 +19,7 @@ mod windows_display;
 #[cfg(windows)]
 const WIN7_OFFSCREEN_PARK_POS: i32 = -16000;
 
-use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
+use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, upsert_custom_cat, CatSkinConfig};
 use config::{
     config_path, load_settings, normalize_keyboard_layout, normalize_keyboard_orientation,
     normalize_tail_key_ids, normalize_tail_key_mode, save_settings, set_windows_autostart,
@@ -295,6 +295,59 @@ fn get_cats() -> Vec<CatSkinConfig> {
 #[tauri::command]
 fn get_game_active() -> bool {
     game_detect::is_game_active()
+}
+
+/// Opens (or focuses) the standalone character-design studio window.
+pub async fn open_studio_window(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("studio") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    // MUST match the main window's `additionalBrowserArgs`; otherwise Windows WebView2
+    // rejects a second webview in the same userDataFolder with ERROR_INVALID_STATE.
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "studio",
+        tauri::WebviewUrl::App("studio.html".into()),
+    )
+    .title("KuroCat · 角色工坊")
+    .inner_size(1120.0, 780.0)
+    .min_inner_size(920.0, 640.0)
+    .resizable(true)
+    .decorations(true)
+    .always_on_top(false)
+    .skip_taskbar(false)
+    .center()
+    .additional_browser_args("--autoplay-policy=no-user-gesture-required")
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_studio(app: AppHandle) -> Result<(), String> {
+    open_studio_window(app).await
+}
+
+/// Saves a studio-generated pet and immediately activates it on the desktop.
+#[tauri::command]
+fn save_studio_cat(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    cat: CatSkinConfig,
+) -> Result<CatSkinConfig, String> {
+    let saved = upsert_custom_cat(cat)?;
+    let _ = app.emit("kuro-cats", all_cats());
+    {
+        let mut s = state.settings.lock().unwrap();
+        s.cat_breed = saved.id.clone();
+        save_settings(&s);
+        let _ = app.emit("kuro-settings", s.clone());
+    }
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -2390,6 +2443,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_settings,
             get_cats,
+            open_studio,
+            save_studio_cat,
             get_game_active,
             get_mcp_config,
             get_obs_url,

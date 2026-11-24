@@ -1,7 +1,8 @@
 use crate::config::AppSettings;
 use crate::{
     apply_breed_and_save, apply_keyboard_layout_and_save, apply_keyboard_orientation_and_save,
-    apply_scale_and_save, apply_tail_key_mode_and_save, is_pet_visible, reset_window_position,
+    apply_scale_and_save, apply_tail_key_mode_and_save, is_pet_visible, open_studio_window,
+    reset_window_position,
     set_pet_always_on_top, set_pet_visible, shutdown_pet_windows, AppState,
 };
 use tauri::image::Image;
@@ -153,6 +154,14 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         ],
     )?;
 
+    let studio_entry = MenuItem::with_id(
+        app,
+        "open_studio",
+        "✨ 新增角色 · AI 捏猫工坊",
+        true,
+        None::<&str>,
+    )?;
+
     let scale_25 = MenuItem::with_id(app, "scale_25", "25%（迷你）", true, None::<&str>)?;
     let scale_50 = MenuItem::with_id(app, "scale_50", "50%（小巧）", true, None::<&str>)?;
     let scale_75 = MenuItem::with_id(app, "scale_75", "75%（适中）", true, None::<&str>)?;
@@ -272,6 +281,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &sound_toggle,
             &always_on_top,
             &breed_menu,
+            &studio_entry,
             &kb_menu,
             &tail_menu,
             &scale_menu,
@@ -300,6 +310,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &sound_toggle,
             &always_on_top,
             &breed_menu,
+            &studio_entry,
             &kb_menu,
             &tail_menu,
             &scale_menu,
@@ -328,6 +339,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &sound_toggle,
             &always_on_top,
             &breed_menu,
+            &studio_entry,
             &kb_menu,
             &tail_menu,
             &scale_menu,
@@ -399,6 +411,12 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         }
                         set_pet_visible(app, next_vis);
                     }
+                }
+                "open_studio" => {
+                    let app_clone = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = crate::open_studio_window(app_clone).await;
+                    });
                 }
                 "pause_guard" => {
                     let next = !state

@@ -1,3 +1,5 @@
+@import "./fonts.css";
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -12,7 +14,7 @@ body {
   height: 100%;
   overflow: hidden;
   background: transparent !important;
-  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif;
+  font-family: "Noto Sans SC UI", "KuroCat UI Emoji", "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif;
 }
 
 /* On Windows 7/8 ULW mode, the cat renders via native 256-level UpdateLayeredWindow while
@@ -761,4 +763,23 @@ html.win7-ulw-mode .floating-side-menu {
 
 .menu-item.hidden {
   display: none;
+}
+
+/* ✨ Character studio entry inside the context menu */
+.studio-entry {
+  margin-top: 5px;
+  border: 1px solid rgba(212, 240, 68, 0.26);
+  background: linear-gradient(135deg, rgba(212, 240, 68, 0.13), rgba(212, 240, 68, 0.035));
+  color: #eef7c8;
+  font-weight: 550;
+}
+
+.studio-entry:hover {
+  background: linear-gradient(135deg, rgba(212, 240, 68, 0.22), rgba(212, 240, 68, 0.07));
+  border-color: rgba(212, 240, 68, 0.46);
+}
+
+.studio-entry .menu-hint {
+  color: #c8f538;
+  font-weight: 650;
 }
