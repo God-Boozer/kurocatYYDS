@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import type { CatAccessory, CatEarShape, CatSkinConfig } from './catSkins';
+import type {
+  CatAccessory,
+  CatEarShape,
+  CatFaceStyle,
+  CatSkinConfig,
+  CatTailStyle,
+} from './catSkins';
 import type { KeyboardLayoutId } from './keyboardLayout';
 import type { KeyboardOrientation, TailKeyMode } from './catEngine';
 import { DEFAULT_TAIL_KEY_IDS } from './catEngine';
@@ -551,6 +557,16 @@ export class KuroCatEngine3D {
     blush: THREE.Mesh;
   }> = [];
   private readonly faceGroup = new THREE.Group();
+  private readonly whiskerGroup = new THREE.Group();
+  private buttonNose: THREE.Mesh | null = null;
+  private faceNose: THREE.Mesh | null = null;
+  private faceMouth: THREE.Mesh | null = null;
+  private smileMesh: THREE.Mesh | null = null;
+  private earTipMeshes: THREE.Mesh[] = [];
+  private earTipMat = new THREE.MeshBasicMaterial({ color: '#2b241d', side: THREE.DoubleSide });
+  private tailStyle: CatTailStyle = 'cat';
+  private tailPuff: THREE.Mesh | null = null;
+  private faceStyle3d: CatFaceStyle = 'cat';
 
   // Shared materials updated on skin switch
   private readonly pawMat: THREE.ShaderMaterial;
@@ -910,6 +926,11 @@ export class KuroCatEngine3D {
       const mesh = new THREE.Mesh(earGeo, this.furSystem.createMaterial('EAR', s));
       mesh.scale.set(1, 1, 0.56);
       g.add(mesh);
+      const tip = new THREE.Mesh(this.buildEarTipGeometry('cat'), this.earTipMat);
+      tip.scale.set(1, 1, 0.56);
+      tip.visible = false;
+      g.add(tip);
+      this.earTipMeshes.push(tip);
       this.headMount.add(g);
       this.ears.push({ group: g, mesh, s, tilt: 0.06, baseX: 0.295, baseY: 0.255, baseZ: -0.015 });
       this.petMeshes.push(mesh);
@@ -985,9 +1006,10 @@ export class KuroCatEngine3D {
           },
           (t) => 0.0042 * (1 - 0.35 * t),
         );
-        this.headMount.add(tube.mesh);
+        this.whiskerGroup.add(tube.mesh);
       }
     }
+    this.headMount.add(this.whiskerGroup);
 
     // 8) Delicate 3D Nose & "ω" Mouth (shown on Ragdoll / Tabby / Calico / Tuxedo / Siamese; hidden on pure Black Cat!)
     {
@@ -1011,7 +1033,29 @@ export class KuroCatEngine3D {
         },
         () => 0.0050,
       );
-      this.faceGroup.add(noseMesh, mouth.mesh);
+      const buttonNose = new THREE.Mesh(
+        new THREE.SphereGeometry(0.042, 16, 12),
+        new THREE.MeshBasicMaterial({ color: '#4a3b36' }),
+      );
+      buttonNose.position.set(0, NY + 0.012, this.surfaceZ(0, NY) + 0.030);
+      buttonNose.scale.set(1.25, 0.95, 0.7);
+      buttonNose.visible = false;
+      buttonNose.renderOrder = 12;
+      this.buttonNose = buttonNose;
+      this.faceNose = noseMesh;
+      this.faceMouth = mouth.mesh;
+      const smile = new TaperTube3D(20, 5, this.mouthMat, 12);
+      smile.update(
+        (t, out) => {
+          const x = mix(-0.070, 0.070, t);
+          const y = NY - 0.040 - 0.030 * Math.sin(t * Math.PI);
+          out.set(x, y, this.surfaceZ(x, y) + 0.026);
+        },
+        (t) => 0.0062 + 0.0022 * Math.sin(t * Math.PI),
+      );
+      smile.mesh.visible = false;
+      this.smileMesh = smile.mesh;
+      this.faceGroup.add(noseMesh, mouth.mesh, buttonNose, smile.mesh);
       this.headMount.add(this.faceGroup);
     }
 
@@ -1301,7 +1345,7 @@ export class KuroCatEngine3D {
 
   /** Mathematically exact Z depth on the front face of our Lathe body at headMount-local (x, y). */
   /** Ear silhouette profiles (radius, height) lathed around the ear axis. */
-  private buildEarGeometry(shape: CatEarShape): THREE.BufferGeometry {
+  private earProfile(shape: CatEarShape): Array<[number, number]> {
     const profiles: Record<CatEarShape, Array<[number, number]>> = {
       cat: [
         [0.23, -0.05], [0.21, 0.03], [0.18, 0.12], [0.135, 0.21],
@@ -1320,11 +1364,45 @@ export class KuroCatEngine3D {
         [0.115, 0.25], [0.07, 0.275], [0.025, 0.288], [0, 0.292],
       ],
     };
-    const pts = profiles[shape] ?? profiles.cat;
+    return profiles[shape] ?? profiles.cat;
+  }
+
+  private buildEarGeometry(shape: CatEarShape): THREE.BufferGeometry {
+    const pts = this.earProfile(shape);
     const splinePts = [new THREE.Vector2(0, -0.05), ...pts.map(([r, y]) => new THREE.Vector2(r, y))];
     const geo = new THREE.LatheGeometry(new THREE.SplineCurve(splinePts).getSpacedPoints(28), 36);
     geo.setAttribute('rest', geo.attributes.position.clone());
     return geo;
+  }
+
+  /** Coloured cap that hugs the top of the ear (Pikachu's black tips, rabbit tips…). */
+  private buildEarTipGeometry(shape: CatEarShape): THREE.BufferGeometry {
+    const pts = this.earProfile(shape).slice(-5);
+    const splinePts = pts.map(([r, y]) => new THREE.Vector2(r * 1.08 + 0.006, y));
+    return new THREE.LatheGeometry(new THREE.SplineCurve(splinePts).getSpacedPoints(16), 28);
+  }
+
+  /** Bolt / puff / stub / no tail — the tail is the loudest "it's a cat" cue. */
+  private applyTailStyle(style: CatTailStyle): void {
+    if (style === this.tailStyle) return;
+    this.tailStyle = style;
+    const tubeOn = style === 'cat' || style === 'bolt';
+    this.tailLimb.fill.mesh.visible = tubeOn;
+    for (const cap of this.tailLimb.caps) cap.visible = tubeOn;
+    if ((style === 'puff' || style === 'stub') && !this.tailPuff) {
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 20, 16),
+        this.furSystem.createMaterial('TAIL'),
+      );
+      ball.frustumCulled = false;
+      this.scene.add(ball);
+      this.tailPuff = ball;
+    }
+    if (this.tailPuff) {
+      const on = style === 'puff' || style === 'stub';
+      this.tailPuff.visible = on;
+      this.tailPuff.scale.setScalar(style === 'puff' ? 0.125 : 0.082);
+    }
   }
 
   private applyEarShape(shape: CatEarShape): void {
@@ -1337,6 +1415,16 @@ export class KuroCatEngine3D {
       e.baseX = shape === 'long' ? 0.272 : shape === 'round' ? 0.3 : shape === 'fold' ? 0.315 : 0.295;
       e.baseY = shape === 'long' ? 0.24 : shape === 'round' ? 0.215 : shape === 'fold' ? 0.15 : 0.255;
       e.group.scale.set(shape === 'long' ? 0.92 : 1.0, shape === 'round' ? 0.94 : 1.04, 1.0);
+    }
+  }
+
+  /** Black / coloured ear tips (Pikachu, Sonic, rabbits) — a strong species cue. */
+  private applyEarTip(skin: CatSkinConfig): void {
+    const show = Boolean(skin.earTipColor);
+    if (show) this.earTipMat.color.set(skin.earTipColor || '#2b241d');
+    for (const tip of this.earTipMeshes) {
+      tip.geometry = this.buildEarTipGeometry(this.earShape);
+      tip.visible = show;
     }
   }
 
@@ -1693,7 +1781,6 @@ export class KuroCatEngine3D {
     this.tuckLineMat.color.set(p.isDarkFur ? '#b2b8c4' : '#7b6e64');
     this.tuckLineMat.opacity = p.isDarkFur ? 0.36 : 0.24;
 
-    this.faceGroup.visible = Boolean(p.nose);
     if (p.nose) this.noseMat.color.set(p.nose);
     if (p.mouth) this.mouthMat.color.set(p.mouth);
 
@@ -1702,6 +1789,26 @@ export class KuroCatEngine3D {
     this.applyAccessories(skin.accessories ?? [], skin.accessoryColor || p.accent);
     this.cheekOn = Boolean(skin.cheekColor);
     if (skin.cheekColor) this.blushMat.color.set(skin.cheekColor);
+
+    // Muzzle & tail: cats keep the triangle nose + "ω" mouth + long tail, other
+    // creatures lose the cat cues so they read as their own species.
+    this.faceStyle3d = skin.faceStyle || 'cat';
+    this.whiskerGroup.visible = skin.whiskers !== false;
+    const isCatFace = this.faceStyle3d === 'cat';
+    const isButton = this.faceStyle3d === 'button';
+    this.faceGroup.visible = true;
+    if (this.faceNose) this.faceNose.visible = isCatFace && Boolean(p.nose);
+    if (this.faceMouth) this.faceMouth.visible = isCatFace && Boolean(p.mouth);
+    if (this.buttonNose) {
+      this.buttonNose.visible = isButton;
+      (this.buttonNose.material as THREE.MeshBasicMaterial).color.set(skin.noseColor || '#4a3b36');
+    }
+    if (this.smileMesh) {
+      this.smileMesh.visible = !isCatFace;
+      if (!isCatFace) this.mouthMat.color.set(p.mouth || '#3a2f2a');
+    }
+    this.applyTailStyle(skin.tailStyle || 'cat');
+    this.applyEarTip(skin);
 
     const lashCol = p.isDarkFur ? '#0b0c10' : p.lid;
     for (const e of this.eyes) {
@@ -2532,9 +2639,31 @@ export class KuroCatEngine3D {
     this.tailTap.hover += (tailHoverTarget - this.tailTap.hover) * approach(34, dt);
 
     this.tailLimb.update(
-      (u, out) => this.tailCurve.getPoint(u, out),
-      (u) => mix(0.068, 0.044, u) * (1 - 0.12 * Math.sin(u * Math.PI)),
+      (u, out) => {
+        this.tailCurve.getPoint(u, out);
+        // Bolt tails zig-zag instead of curling smoothly.
+        if (this.tailStyle === 'bolt') {
+          out.y += Math.sin(u * Math.PI * 3.2) * 0.17 * (1 - u * 0.3);
+        }
+      },
+      (u) => {
+        if (this.tailStyle === 'bolt') return mix(0.10, 0.05, u) * (1 - 0.12 * Math.sin(u * Math.PI));
+        if (this.tailStyle === 'stub') return mix(0.058, 0.030, u);
+        return mix(0.068, 0.044, u) * (1 - 0.12 * Math.sin(u * Math.PI));
+      },
     );
+    if (this.tailPuff) {
+      // Pom / stub tail sits on the hip (body-local anchor), not at the cat-tail tip.
+      const py = this.tailStyle === 'puff' ? 0.36 : 0.30;
+      const anchor = this.tmpV2.set(
+        this.radiusAtY(py) * (this.tailStyle === 'puff' ? 0.96 : 0.92),
+        py,
+        -0.10,
+      );
+      this.attachLocal(anchor, this.tmpV1);
+      this.tmpV1.y += Math.sin(this.tailPhase * 1.3) * 0.012;
+      this.tailPuff.position.copy(this.tmpV1);
+    }
 
     // 9) Sleek Unified KuroCat Arms + Cozy Tucked Idle Belly Paws!
     const updatePaw = (paw: PawTrack3D, isLeft: boolean) => {

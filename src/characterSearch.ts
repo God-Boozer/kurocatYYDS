@@ -1,4 +1,4 @@
-import type { CatAccessory, CatEarShape } from './catSkins';
+import type { CatAccessory, CatEarShape, CatSpecies, CatTailStyle } from './catSkins';
 import type { CharacterPalette } from './characterLibrary';
 import { findInLibrary } from './characterLibrary';
 
@@ -87,9 +87,14 @@ function colorWordNear(text: string, index: number): ColorWord | null {
 }
 
 /** Silhouette hints (ears, signature accessories) found in a description. */
-function shapeHints(text: string): Pick<CharacterPalette, 'earShape' | 'accessories' | 'cheek'> {
+function shapeHints(
+  text: string,
+): Pick<CharacterPalette, 'earShape' | 'accessories' | 'cheek' | 'species' | 'tailStyle' | 'earTip'> {
   const t = normalizeText(text);
-  const out: Pick<CharacterPalette, 'earShape' | 'accessories' | 'cheek'> = {};
+  const out: Pick<
+    CharacterPalette,
+    'earShape' | 'accessories' | 'cheek' | 'species' | 'tailStyle' | 'earTip'
+  > = {};
   if (/(rabbit|bunny|usagi|long ears|tall ears|bunny ears)/.test(t)) out.earShape = 'long';
   else if (/(droop|floppy|lop ears|folded ears)/.test(t)) out.earShape = 'fold';
   else if (/(round ears|bear ears|teddy|round ear)/.test(t)) out.earShape = 'round';
@@ -104,6 +109,26 @@ function shapeHints(text: string): Pick<CharacterPalette, 'earShape' | 'accessor
   if (accessories.length > 0) out.accessories = accessories;
 
   if (/(blush|red cheeks|rosy cheeks)/.test(t)) out.cheek = '#f2879f';
+
+  // Creature type from the description (AniList descriptions mention species a lot).
+  const sonicLike = /(sonic|hedgehog)/.test(t);
+  const pokemonLike = /(pokemon|pikachu|raichu)/.test(t);
+  if (sonicLike) out.species = 'hedgehog';
+  else if (pokemonLike) out.species = 'blob';
+  else if (/(rabbit|bunny|usagi)/.test(t)) out.species = 'rabbit';
+  else if (/(bear|teddy|pooh|kumamon)/.test(t)) out.species = 'bear';
+  else if (/(ghost|specter|phantom|yokai)/.test(t)) out.species = 'ghost';
+  else if (/(duck|donald|bird)/.test(t)) out.species = 'duck';
+  else if (/(starfish|sea star|patrick)/.test(t)) out.species = 'star';
+  else if (/(kirby|jelly|slime|blob)/.test(t)) out.species = 'blob';
+  if (pokemonLike || sonicLike) {
+    out.tailStyle = 'bolt' as CatTailStyle;
+    out.earTip = '#2b241d';
+  } else if (out.species === 'ghost' || out.species === 'star') {
+    out.tailStyle = 'none' as CatTailStyle;
+  } else if (out.species) {
+    out.tailStyle = 'puff' as CatTailStyle;
+  }
   return out;
 }
 

@@ -1,4 +1,10 @@
-import type { CatAccessory, CatEarShape, CatPattern } from './catSkins';
+import type {
+  CatAccessory,
+  CatEarShape,
+  CatPattern,
+  CatSpecies,
+  CatTailStyle,
+} from './catSkins';
 
 /**
  * A hand-tuned palette for a well-known character. Every entry is offline, so
@@ -28,6 +34,11 @@ export interface CharacterPalette {
   accessories?: CatAccessory[];
   /** Always-on anime cheek blush (used for Pikachu, Kirby, Kumamon…). */
   cheek?: string;
+  /** Creature type: drives muzzle, whiskers, tail and ear tips. */
+  species?: CatSpecies;
+  tailStyle?: CatTailStyle;
+  /** Dark ear tips (Pikachu / Stitch / Eevee). */
+  earTip?: string;
 }
 
 const LIBRARY: CharacterPalette[] = [
@@ -102,6 +113,9 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'solid',
     earShape: 'long',
     cheek: '#e8463c',
+    species: 'blob',
+    tailStyle: 'bolt',
+    earTip: '#2b241d',
   },
   {
     id: 'eevee',
@@ -118,6 +132,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'bicolor',
     fluffy: true,
     earShape: 'long',
+    species: 'rabbit',
+    earTip: '#6b4a2f',
   },
   {
     id: 'meowth',
@@ -148,6 +164,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#4a9e6b',
     pattern: 'calico',
     earShape: 'round',
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'charmander',
@@ -163,6 +181,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#e8552c',
     pattern: 'bicolor',
     earShape: 'round',
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'squirtle',
@@ -178,6 +198,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#6fa8dc',
     pattern: 'bicolor',
     earShape: 'round',
+    species: 'blob',
+    tailStyle: 'stub',
   },
   {
     id: 'gengar',
@@ -193,6 +215,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#a77aff',
     pattern: 'solid',
     earShape: 'round',
+    species: 'ghost',
+    tailStyle: 'none',
   },
   // ---- 经典卡通 ----
   {
@@ -210,6 +234,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'bicolor',
     earShape: 'round',
     accessories: ['bell'],
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'dorami',
@@ -226,6 +252,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'bicolor',
     earShape: 'round',
     accessories: ['bow'],
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'totoro',
@@ -241,7 +269,9 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#8c8478',
     pattern: 'bicolor',
     fluffy: true,
-    earShape: 'long',
+    earShape: 'round',
+    species: 'bear',
+    tailStyle: 'puff',
   },
   {
     id: 'noface',
@@ -258,6 +288,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#7a7a8a',
     pattern: 'siamese',
     earShape: 'round',
+    species: 'ghost',
+    tailStyle: 'none',
   },
   {
     id: 'garfield',
@@ -303,6 +335,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#c98a5a',
     pattern: 'bicolor',
     earShape: 'round',
+    species: 'bear',
+    tailStyle: 'cat',
   },
   // ---- 三丽鸥 / 治愈系 ----
   {
@@ -321,6 +355,8 @@ const LIBRARY: CharacterPalette[] = [
     earShape: 'round',
     accessories: ['bow'],
     cheek: '#f9b7c8',
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'kuromi',
@@ -338,6 +374,8 @@ const LIBRARY: CharacterPalette[] = [
     earShape: 'long',
     accessories: ['hat'],
     cheek: '#e9a4c0',
+    species: 'rabbit',
+    tailStyle: 'none',
   },
   {
     id: 'cinamoroll',
@@ -355,6 +393,8 @@ const LIBRARY: CharacterPalette[] = [
     fluffy: true,
     earShape: 'long',
     cheek: '#f6c4d4',
+    species: 'rabbit',
+    tailStyle: 'none',
   },
   {
     id: 'mymelody',
@@ -372,6 +412,8 @@ const LIBRARY: CharacterPalette[] = [
     earShape: 'round',
     accessories: ['bow'],
     cheek: '#f7b4c8',
+    species: 'rabbit',
+    tailStyle: 'none',
   },
   {
     id: 'pompompurin',
@@ -388,6 +430,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'solid',
     earShape: 'round',
     accessories: ['hat'],
+    species: 'bear',
+    tailStyle: 'puff',
   },
   {
     id: 'pochacco',
@@ -403,6 +447,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#2ea7e0',
     pattern: 'solid',
     earShape: 'fold',
+    species: 'bear',
+    tailStyle: 'stub',
   },
   {
     id: 'chi',
@@ -453,6 +499,9 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#8fd3f4',
     pattern: 'bicolor',
     earShape: 'long',
+    species: 'blob',
+    tailStyle: 'none',
+    earTip: '#27406e',
   },
   {
     id: 'elsa',
@@ -502,6 +551,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#e8a13c',
     pattern: 'solid',
     earShape: 'round',
+    species: 'bear',
+    tailStyle: 'stub',
   },
   {
     id: 'mickey',
@@ -517,6 +568,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#e8552c',
     pattern: 'tuxedo',
     earShape: 'round',
+    species: 'bear',
+    tailStyle: 'stub',
   },
   {
     id: 'minnie',
@@ -534,6 +587,8 @@ const LIBRARY: CharacterPalette[] = [
     earShape: 'round',
     accessories: ['bow'],
     cheek: '#f7b0c4',
+    species: 'bear',
+    tailStyle: 'stub',
   },
   {
     id: 'donald',
@@ -550,6 +605,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'solid',
     earShape: 'round',
     accessories: ['hat'],
+    species: 'duck',
+    tailStyle: 'stub',
   },
   {
     id: 'kumamon',
@@ -566,6 +623,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'tuxedo',
     earShape: 'round',
     cheek: '#e8463c',
+    species: 'bear',
+    tailStyle: 'stub',
   },
   // ---- 游戏 ----
   {
@@ -584,6 +643,8 @@ const LIBRARY: CharacterPalette[] = [
     fluffy: true,
     earShape: 'round',
     cheek: '#f08fb0',
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'sonic',
@@ -599,6 +660,9 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#e8552c',
     pattern: 'bicolor',
     earShape: 'long',
+    species: 'hedgehog',
+    tailStyle: 'stub',
+    earTip: '#2b241d',
   },
   {
     id: 'mario',
@@ -804,6 +868,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#4a90d9',
     pattern: 'solid',
     earShape: 'round',
+    species: 'blob',
+    tailStyle: 'none',
   },
   {
     id: 'patrick',
@@ -819,6 +885,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#f2a7c3',
     pattern: 'solid',
     earShape: 'round',
+    species: 'star',
+    tailStyle: 'none',
   },
   {
     id: 'squidward',
@@ -834,6 +902,8 @@ const LIBRARY: CharacterPalette[] = [
     accent: '#8fd3c0',
     pattern: 'solid',
     earShape: 'round',
+    species: 'blob',
+    tailStyle: 'none',
   },
   // ---- 更多 VOCALOID ----
   {
@@ -969,6 +1039,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'bicolor',
     earShape: 'round',
     accessories: ['hat'],
+    species: 'bear',
+    tailStyle: 'cat',
   },
   {
     id: 'beita',
@@ -985,6 +1057,8 @@ const LIBRARY: CharacterPalette[] = [
     pattern: 'bicolor',
     earShape: 'round',
     accessories: ['hat'],
+    species: 'bear',
+    tailStyle: 'cat',
   },
 ];
 

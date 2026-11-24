@@ -13,6 +13,18 @@ export type CatPattern = 'solid' | 'bicolor' | 'tuxedo' | 'tabby' | 'calico' | '
 /** Silhouette variants so a character skin can read as that character. */
 export type CatEarShape = 'cat' | 'round' | 'long' | 'fold';
 export type CatAccessory = 'bow' | 'bell' | 'glasses' | 'ahoge' | 'headband' | 'hat';
+/** What kind of creature the character is — drives muzzle, whiskers, tail, ear tips. */
+export type CatSpecies =
+  | 'cat'
+  | 'rabbit'
+  | 'hedgehog'
+  | 'bear'
+  | 'blob'
+  | 'ghost'
+  | 'duck'
+  | 'star';
+export type CatTailStyle = 'cat' | 'bolt' | 'puff' | 'stub' | 'none';
+export type CatFaceStyle = 'cat' | 'button' | 'none';
 
 export interface CatSkinConfig {
   id: string;
@@ -64,6 +76,10 @@ export interface CatSkinConfig {
   accentSideColor?: string;
 
   /** Character silhouette extras (used by the studio's character search). */
+  species?: CatSpecies;
+  tailStyle?: CatTailStyle;
+  faceStyle?: CatFaceStyle;
+  whiskers?: boolean;
   earShape?: CatEarShape;
   cheekColor?: string;
   accessories?: CatAccessory[];
@@ -112,6 +128,11 @@ export interface ResolvedSkin {
   armCreaseColor: string | null;
   accentColor: string;
   accentSideColor: string;
+  species: CatSpecies;
+  tailStyle: CatTailStyle;
+  faceStyle: CatFaceStyle;
+  whiskers: boolean;
+  earTipCap: boolean;
   earShape: CatEarShape;
   cheekColor: string | null;
   accessories: CatAccessory[];
@@ -136,6 +157,29 @@ export function isLightColor(hex: string): boolean {
 
 const ACCESSORY_IDS: CatAccessory[] = ['bow', 'bell', 'glasses', 'ahoge', 'headband', 'hat'];
 
+const SPECIES_IDS: CatSpecies[] = [
+  'cat', 'rabbit', 'hedgehog', 'bear', 'blob', 'ghost', 'duck', 'star',
+];
+
+/** Default muzzle / whisker / tail / ear-tip treatment per creature type. */
+const SPECIES_LOOK: Record<
+  CatSpecies,
+  { whiskers: boolean; face: CatFaceStyle; tail: CatTailStyle; earTipCap: boolean }
+> = {
+  cat: { whiskers: true, face: 'cat', tail: 'cat', earTipCap: false },
+  rabbit: { whiskers: false, face: 'button', tail: 'puff', earTipCap: true },
+  hedgehog: { whiskers: false, face: 'button', tail: 'bolt', earTipCap: true },
+  bear: { whiskers: false, face: 'button', tail: 'stub', earTipCap: false },
+  blob: { whiskers: false, face: 'button', tail: 'puff', earTipCap: false },
+  ghost: { whiskers: false, face: 'none', tail: 'none', earTipCap: false },
+  duck: { whiskers: false, face: 'none', tail: 'stub', earTipCap: false },
+  star: { whiskers: false, face: 'button', tail: 'none', earTipCap: false },
+};
+
+function isSpecies(value: string): value is CatSpecies {
+  return (SPECIES_IDS as string[]).includes(value);
+}
+
 function isAccessory(value: string): value is CatAccessory {
   return (ACCESSORY_IDS as string[]).includes(value);
 }
@@ -149,6 +193,11 @@ export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
   const pawColor = raw.pawColor || (pattern === 'tuxedo' ? '#faf9f5' : fur);
   const armColor = raw.armColor || fur;
   const pawIsLight = isLightColor(pawColor);
+  const species = raw.species && isSpecies(raw.species) ? raw.species : 'cat';
+  const speciesLook = SPECIES_LOOK[species];
+  const faceStyle = raw.faceStyle || speciesLook.face;
+  const tailStyle = raw.tailStyle || speciesLook.tail;
+  const whiskers = raw.whiskers ?? speciesLook.whiskers;
 
   return {
     id: raw.id,
@@ -184,7 +233,14 @@ export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
     eyeRimColor: raw.eyeRimColor || (darkBase ? null : 'rgba(42, 46, 58, 0.78)'),
     squintColor: raw.squintColor || (darkBase ? raw.eyeColorTop || '#d4f044' : '#2c2928'),
     squintGlowColor: raw.squintGlowColor || null,
-    noseColor: raw.noseColor !== undefined ? (raw.noseColor || null) : (darkBase ? null : '#ee8e9e'),
+    noseColor:
+      raw.noseColor !== undefined
+        ? raw.noseColor || null
+        : faceStyle === 'button'
+          ? '#3a2f2c'
+          : darkBase
+            ? null
+            : '#ee8e9e',
     mouthColor: raw.mouthColor || (darkBase ? null : 'rgba(72, 68, 76, 0.78)'),
     blushColor: raw.blushColor || (darkBase ? null : '#f492a6'),
     whiskerColor:
@@ -201,6 +257,11 @@ export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
         : (!pawIsLight ? 'rgba(216, 218, 222, 0.62)' : null),
     accentColor: raw.accentColor || '#d2f244',
     accentSideColor: raw.accentSideColor || '#8cb014',
+    species,
+    tailStyle,
+    faceStyle,
+    whiskers,
+    earTipCap: (raw.earShape === 'long' || raw.earShape === 'fold') ? speciesLook.earTipCap : false,
     earShape: raw.earShape || 'cat',
     cheekColor: raw.cheekColor || null,
     accessories: Array.isArray(raw.accessories) ? raw.accessories.filter(isAccessory) : [],
